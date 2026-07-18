@@ -11,6 +11,16 @@ npm run dev
 
 Open the URL Vite prints (usually `http://localhost:5173`). On a phone, use your computer’s LAN address over HTTPS or `localhost` tunnels—browsers require a secure context for precise geolocation outside localhost.
 
+## Deploy on Railway
+
+This repo is set up for Railway with a multi-stage Docker build (Vite → Caddy).
+
+1. Create a new Railway project and deploy from the GitHub repo (`lancekalbach/TRAILBUILT`).
+2. In the service **Settings → Networking**, click **Generate Domain**.
+3. No environment variables are required — trails and markers stay in the browser (IndexedDB).
+
+GPS needs HTTPS; Railway’s public domain provides that.
+
 ## How to use
 
 1. Export a trail as **GPX** from Trailforks or Strava.
