@@ -98,6 +98,9 @@ input {
 .map-page .map-root {
   position: absolute;
   inset: 0;
+  /* Isolate map compositing from UI overlays (helps mobile pan jank). */
+  contain: layout paint;
+  transform: translateZ(0);
 }
 
 .map-drawer {
@@ -135,6 +138,26 @@ input {
   box-shadow: 0 -10px 36px rgba(0, 0, 0, 0.4);
   padding-bottom: env(safe-area-inset-bottom);
   overflow: hidden;
+}
+
+@media (pointer: coarse) {
+  .map-drawer-sheet {
+    backdrop-filter: none;
+    background: rgba(10, 10, 10, 0.97);
+  }
+
+  .map-dropdown-trigger,
+  .map-dropdown-panel {
+    backdrop-filter: none;
+  }
+
+  .map-dropdown-trigger {
+    background: rgba(10, 10, 10, 0.92);
+  }
+
+  .map-dropdown-panel {
+    background: rgba(12, 12, 12, 0.98);
+  }
 }
 
 .map-drawer-handle {

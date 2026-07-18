@@ -7,49 +7,85 @@ import { trackBounds, tracksToGeoJson } from '../lib/gpx'
 import { markersToGeoJson, markerKindIconSvg, markerKindMeta } from '../lib/markers'
 import { nearestPointOnTrails } from '../lib/trailGeometry'
 
-const MAP_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: [
-        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      ],
-      tileSize: 256,
-      attribution: '© OpenStreetMap contributors',
-    },
-    satellite: {
-      type: 'raster',
-      tiles: [
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      ],
-      tileSize: 256,
-      maxzoom: 19,
-      attribution:
-        'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
-    },
-  },
-  layers: [
-    {
-      id: 'osm',
-      type: 'raster',
-      source: 'osm',
-      minzoom: 0,
-      maxzoom: 19,
-    },
-    {
-      id: 'satellite',
-      type: 'raster',
-      source: 'satellite',
-      minzoom: 12,
-      maxzoom: 22,
-      paint: {
-        'raster-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0, 13.5, 1],
+function prefersReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function isMobileMapDevice(): boolean {
+  return (
+    window.matchMedia('(pointer: coarse)').matches ||
+    window.matchMedia('(max-width: 900px)').matches
+  )
+}
+
+/** OSM fades out as satellite fades in so we never fully composite both stacks. */
+function buildMapStyle(mobile: boolean): maplibregl.StyleSpecification {
+  const satIn = mobile ? 13.5 : 12
+  const satFull = mobile ? 15 : 13.5
+
+  return {
+    version: 8,
+    sources: {
+      osm: {
+        type: 'raster',
+        tiles: [
+          'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        ],
+        tileSize: 256,
+        attribution: '© OpenStreetMap contributors',
+      },
+      satellite: {
+        type: 'raster',
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        ],
+        tileSize: 256,
+        maxzoom: 19,
+        attribution:
+          'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
       },
     },
-  ],
+    layers: [
+      {
+        id: 'osm',
+        type: 'raster',
+        source: 'osm',
+        minzoom: 0,
+        maxzoom: 19,
+        paint: {
+          'raster-opacity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            satIn,
+            1,
+            satFull,
+            0,
+          ],
+        },
+      },
+      {
+        id: 'satellite',
+        type: 'raster',
+        source: 'satellite',
+        minzoom: satIn,
+        maxzoom: 22,
+        paint: {
+          'raster-opacity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            satIn,
+            0,
+            satFull,
+            1,
+          ],
+        },
+      },
+    ],
+  }
 }
 
 const TRACKS_SOURCE = 'trail-tracks'
@@ -115,12 +151,13 @@ const MARKER_HIT_RADIUS: maplibregl.ExpressionSpecification = [
 ]
 
 function ensureMarkerLayers(map: MapLibreMap) {
-  if (!map.getSource(MARKERS_SOURCE)) {
-    map.addSource(MARKERS_SOURCE, {
-      type: 'geojson',
-      data: { type: 'FeatureCollection', features: [] },
-    })
-  }
+    if (!map.getSource(MARKERS_SOURCE)) {
+      map.addSource(MARKERS_SOURCE, {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+        buffer: 32,
+      })
+    }
 
   if (!map.hasImage('trail-warning-icon')) {
     const size = 128
@@ -191,14 +228,17 @@ function ensureMarkerLayers(map: MapLibreMap) {
   }
 }
 
-function ensureTrackLayers(map: MapLibreMap) {
+function ensureTrackLayers(map: MapLibreMap, mobile: boolean) {
   if (!map.getSource(TRACKS_SOURCE)) {
     map.addSource(TRACKS_SOURCE, {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] },
+      // Higher tolerance = cheaper geometry at low zoom (mobile GPUs benefit most).
+      tolerance: mobile ? 1.25 : 0.5,
+      buffer: mobile ? 32 : 64,
     })
   }
-  if (!map.getLayer(TRACKS_CASING)) {
+  if (!map.getLayer(TRACKS_CASING) && !mobile) {
     map.addLayer({
       id: TRACKS_CASING,
       type: 'line',
@@ -219,7 +259,7 @@ function ensureTrackLayers(map: MapLibreMap) {
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: {
         'line-color': ['get', 'color'],
-        'line-width': 3.5,
+        'line-width': mobile ? 4 : 3.5,
         'line-opacity': ['get', 'opacity'],
       },
     })
@@ -232,7 +272,7 @@ function ensureTrackLayers(map: MapLibreMap) {
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: {
         'line-color': '#000000',
-        'line-width': 18,
+        'line-width': mobile ? 22 : 18,
         'line-opacity': 0.01,
       },
     })
@@ -258,12 +298,16 @@ export function MapView({
   const gpsMarkerRef = useRef<Marker | null>(null)
   const accuracyElRef = useRef<HTMLDivElement | null>(null)
   const accuracyMarkerRef = useRef<Marker | null>(null)
+  const accuracyZoomBoundRef = useRef(false)
+  const gpsAccuracyRef = useRef<number | null>(null)
+  const gpsLatRef = useRef(0)
   const trailPopupRef = useRef<Popup | null>(null)
   const markerPopupRef = useRef<Popup | null>(null)
   const tracksRef = useRef(tracks)
   const markersRef = useRef(markers)
   const followGpsRef = useRef(followGps)
   const placementModeRef = useRef(placementMode)
+  const mobileRef = useRef(false)
   const onMapReadyRef = useRef(onMapReady)
   const onFollowChangeRef = useRef(onFollowChange)
   const onPlaceLocationRef = useRef(onPlaceLocation)
@@ -281,14 +325,27 @@ export function MapView({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
+    const mobile = isMobileMapDevice()
+    mobileRef.current = mobile
+
     let map: MapLibreMap
     try {
       map = new maplibregl.Map({
         container: containerRef.current,
-        style: MAP_STYLE,
+        style: buildMapStyle(mobile),
         center: [-98.5795, 39.8283],
         zoom: 3.5,
         interactive,
+        attributionControl: false,
+        // Cap DPR on phones — retina canvases are a major fill-rate cost while panning.
+        pixelRatio: mobile ? Math.min(window.devicePixelRatio || 1, 1.5) : undefined,
+        fadeDuration: 0,
+        antialias: !mobile,
+        maxTileCacheSize: mobile ? 40 : 80,
+        renderWorldCopies: false,
+        dragRotate: !mobile,
+        pitchWithRotate: false,
+        touchPitch: !mobile,
       })
     } catch (err) {
       console.error('Failed to create map', err)
@@ -411,31 +468,37 @@ export function MapView({
 
     map.on('click', handleMapClick)
 
-    map.on('mousemove', (e) => {
-      if (placementModeRef.current === 'selecting') {
-        map.getCanvas().style.cursor = 'crosshair'
-        return
-      }
-
-      if (map.getLayer(MARKERS_HIT)) {
-        const onMarker = map.queryRenderedFeatures(e.point, { layers: [MARKERS_HIT] }).length > 0
-        if (onMarker) {
-          map.getCanvas().style.cursor = 'pointer'
+    // Hover cursor queries are desktop-only; touch devices don't need per-move hit tests.
+    const finePointer = window.matchMedia('(pointer: fine)').matches
+    if (finePointer) {
+      map.on('mousemove', (e) => {
+        if (placementModeRef.current === 'selecting') {
+          map.getCanvas().style.cursor = 'crosshair'
           return
         }
-      }
 
-      if (!map.getLayer(TRACKS_HIT)) return
-      const hovering = map.queryRenderedFeatures(e.point, { layers: [TRACKS_HIT] }).length > 0
-      map.getCanvas().style.cursor = hovering ? 'pointer' : ''
-    })
+        if (map.getLayer(MARKERS_HIT)) {
+          const onMarker = map.queryRenderedFeatures(e.point, { layers: [MARKERS_HIT] }).length > 0
+          if (onMarker) {
+            map.getCanvas().style.cursor = 'pointer'
+            return
+          }
+        }
 
-    map.on('dragstart', () => onFollowChangeRef.current?.(false))
+        if (!map.getLayer(TRACKS_HIT)) return
+        const hovering = map.queryRenderedFeatures(e.point, { layers: [TRACKS_HIT] }).length > 0
+        map.getCanvas().style.cursor = hovering ? 'pointer' : ''
+      })
+    }
 
-    const breakFollow = () => onFollowChangeRef.current?.(false)
-    map.on('mousedown', breakFollow)
-    map.on('touchstart', breakFollow)
+    const breakFollow = () => {
+      if (!followGpsRef.current) return
+      onFollowChangeRef.current?.(false)
+    }
+    map.on('dragstart', breakFollow)
     map.on('wheel', breakFollow)
+    map.on('rotatestart', breakFollow)
+    map.on('pitchstart', breakFollow)
 
     mapRef.current = map
     onMapReadyRef.current?.(map)
@@ -447,6 +510,7 @@ export function MapView({
       trailPopupRef.current = null
       markerPopupRef.current?.remove()
       markerPopupRef.current = null
+      accuracyZoomBoundRef.current = false
       onMapReadyRef.current?.(null)
       map.remove()
       mapRef.current = null
@@ -458,7 +522,7 @@ export function MapView({
     if (!map) return
 
     const apply = () => {
-      ensureTrackLayers(map)
+      ensureTrackLayers(map, mobileRef.current)
       const source = map.getSource(TRACKS_SOURCE) as GeoJSONSource | undefined
       source?.setData(tracksToGeoJson(tracks))
     }
@@ -500,12 +564,19 @@ export function MapView({
     if (!track) return
     const bounds = trackBounds(track)
     if (!bounds) return
-    map.fitBounds(bounds, { padding: 56, duration: 800, maxZoom: 16 })
+    map.fitBounds(bounds, {
+      padding: 56,
+      duration: prefersReducedMotion() ? 0 : 800,
+      maxZoom: 16,
+    })
   }, [focusTrackId, tracks])
 
   useEffect(() => {
     const map = mapRef.current
     if (!map || !gps) return
+
+    gpsLatRef.current = gps.lat
+    gpsAccuracyRef.current = gps.accuracy ?? null
 
     if (!gpsMarkerRef.current) {
       const el = document.createElement('div')
@@ -515,6 +586,18 @@ export function MapView({
         .addTo(map)
     } else {
       gpsMarkerRef.current.setLngLat([gps.lng, gps.lat])
+    }
+
+    const updateAccuracySize = () => {
+      const el = accuracyElRef.current
+      const accuracy = gpsAccuracyRef.current
+      if (!el || accuracy == null || accuracy <= 0) return
+      const metersPerPx =
+        (40075016.686 * Math.abs(Math.cos((gpsLatRef.current * Math.PI) / 180))) /
+        Math.pow(2, map.getZoom() + 8)
+      const px = Math.max(12, (accuracy / metersPerPx) * 2)
+      el.style.width = `${px}px`
+      el.style.height = `${px}px`
     }
 
     if (gps.accuracy != null && gps.accuracy > 0) {
@@ -532,30 +615,17 @@ export function MapView({
         accuracyMarkerRef.current.setLngLat([gps.lng, gps.lat])
       }
 
-      const el = accuracyElRef.current
-      const updateSize = () => {
-        if (!el) return
-        const metersPerPx =
-          (40075016.686 * Math.abs(Math.cos((gps.lat * Math.PI) / 180))) /
-          Math.pow(2, map.getZoom() + 8)
-        const px = Math.max(12, (gps.accuracy! / metersPerPx) * 2)
-        el.style.width = `${px}px`
-        el.style.height = `${px}px`
-      }
-      updateSize()
-      map.on('zoom', updateSize)
+      updateAccuracySize()
 
-      if (followGpsRef.current) {
-        map.easeTo({ center: [gps.lng, gps.lat], duration: 500 })
-      }
-
-      return () => {
-        map.off('zoom', updateSize)
+      if (!accuracyZoomBoundRef.current) {
+        map.on('zoom', updateAccuracySize)
+        accuracyZoomBoundRef.current = true
       }
     }
 
     if (followGpsRef.current) {
-      map.easeTo({ center: [gps.lng, gps.lat], duration: 500 })
+      // jumpTo avoids stacking easeTo animations on every GPS tick.
+      map.jumpTo({ center: [gps.lng, gps.lat] })
     }
   }, [gps])
 

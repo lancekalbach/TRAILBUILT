@@ -67,6 +67,8 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    if (view !== 'map') return
+
     const watch = watchGps(
       (pos) => {
         setGps(pos)
@@ -75,6 +77,10 @@ export default function App() {
       (message) => setGpsError(message),
     )
     return () => watch.clear()
+  }, [view])
+
+  const handleFollowChange = useCallback((follow: boolean) => {
+    setFollowGps((prev) => (prev === follow ? prev : follow))
   }, [])
 
   const handleMapReady = useCallback((m: MapLibreMap | null) => {
@@ -237,7 +243,7 @@ export default function App() {
                 markers={markers}
                 gps={gps}
                 followGps={followGps}
-                onFollowChange={setFollowGps}
+                onFollowChange={handleFollowChange}
                 onMapReady={handleMapReady}
                 focusTrackId={focusTrackId}
                 placementMode={placementMode}
