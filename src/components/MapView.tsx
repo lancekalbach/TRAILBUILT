@@ -340,7 +340,6 @@ export function MapView({
         // Cap DPR on phones — retina canvases are a major fill-rate cost while panning.
         pixelRatio: mobile ? Math.min(window.devicePixelRatio || 1, 1.5) : undefined,
         fadeDuration: 0,
-        antialias: !mobile,
         maxTileCacheSize: mobile ? 40 : 80,
         renderWorldCopies: false,
         dragRotate: !mobile,
