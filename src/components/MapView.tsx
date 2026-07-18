@@ -18,11 +18,17 @@ function isMobileMapDevice(): boolean {
   )
 }
 
-/** OSM fades out as satellite fades in so we never fully composite both stacks. */
-function buildMapStyle(mobile: boolean): maplibregl.StyleSpecification {
-  const satIn = mobile ? 13.5 : 12
-  const satFull = mobile ? 15 : 13.5
+type BasemapId = 'streets' | 'satellite'
 
+const OSM_LAYER = 'osm'
+const SATELLITE_LAYER = 'satellite'
+const DESKTOP_SAT_ZOOM = 13.5
+
+/**
+ * Exclusive basemap style — never composite OSM + satellite.
+ * Opacity crossfades still load/decode both tile stacks; visibility swaps do not.
+ */
+function buildMapStyle(): maplibregl.StyleSpecification {
   return {
     version: 8,
     sources: {
@@ -49,42 +55,92 @@ function buildMapStyle(mobile: boolean): maplibregl.StyleSpecification {
     },
     layers: [
       {
-        id: 'osm',
+        id: OSM_LAYER,
         type: 'raster',
         source: 'osm',
         minzoom: 0,
         maxzoom: 19,
-        paint: {
-          'raster-opacity': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            satIn,
-            1,
-            satFull,
-            0,
-          ],
-        },
+        layout: { visibility: 'visible' },
       },
       {
-        id: 'satellite',
+        id: SATELLITE_LAYER,
         type: 'raster',
         source: 'satellite',
-        minzoom: satIn,
+        minzoom: 0,
         maxzoom: 22,
-        paint: {
-          'raster-opacity': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            satIn,
-            0,
-            satFull,
-            1,
-          ],
-        },
+        layout: { visibility: 'none' },
       },
     ],
+  }
+}
+
+function setBasemap(map: MapLibreMap, mode: BasemapId) {
+  if (map.getLayer(OSM_LAYER)) {
+    map.setLayoutProperty(OSM_LAYER, 'visibility', mode === 'streets' ? 'visible' : 'none')
+  }
+  if (map.getLayer(SATELLITE_LAYER)) {
+    map.setLayoutProperty(SATELLITE_LAYER, 'visibility', mode === 'satellite' ? 'visible' : 'none')
+  }
+}
+
+function queryHitFeatures(
+  map: MapLibreMap,
+  point: maplibregl.PointLike,
+  layerIds: string[],
+  pad: number,
+) {
+  const existing = layerIds.filter((id) => map.getLayer(id))
+  if (existing.length === 0) return []
+
+  if (pad <= 0) {
+    return map.queryRenderedFeatures(point, { layers: existing })
+  }
+
+  const p = point as { x: number; y: number }
+  return map.queryRenderedFeatures(
+    [
+      [p.x - pad, p.y - pad],
+      [p.x + pad, p.y + pad],
+    ],
+    { layers: existing },
+  )
+}
+
+/** Compact MapLibre control to toggle satellite without dual-basemap cost. */
+class BasemapToggleControl implements maplibregl.IControl {
+  private _container!: HTMLDivElement
+  private _button!: HTMLButtonElement
+  private _getMode: () => BasemapId
+  private _onToggle: () => void
+
+  constructor(getMode: () => BasemapId, onToggle: () => void) {
+    this._getMode = getMode
+    this._onToggle = onToggle
+  }
+
+  onAdd(_map: MapLibreMap) {
+    this._container = document.createElement('div')
+    this._container.className = 'maplibregl-ctrl maplibregl-ctrl-group map-basemap-ctrl'
+    this._button = document.createElement('button')
+    this._button.type = 'button'
+    this._button.className = 'map-basemap-btn'
+    this._button.addEventListener('click', this._onToggle)
+    this._container.appendChild(this._button)
+    this.sync()
+    return this._container
+  }
+
+  onRemove() {
+    this._button.removeEventListener('click', this._onToggle)
+    this._container.remove()
+  }
+
+  sync() {
+    const sat = this._getMode() === 'satellite'
+    this._button.textContent = sat ? 'Map' : 'Sat'
+    this._button.setAttribute('aria-label', sat ? 'Show street map' : 'Show satellite')
+    this._button.title = sat ? 'Street map' : 'Satellite'
+    this._button.setAttribute('aria-pressed', sat ? 'true' : 'false')
   }
 }
 
@@ -150,14 +206,14 @@ const MARKER_HIT_RADIUS: maplibregl.ExpressionSpecification = [
   22.5,
 ]
 
-function ensureMarkerLayers(map: MapLibreMap) {
-    if (!map.getSource(MARKERS_SOURCE)) {
-      map.addSource(MARKERS_SOURCE, {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
-        buffer: 32,
-      })
-    }
+function ensureMarkerLayers(map: MapLibreMap, mobile: boolean) {
+  if (!map.getSource(MARKERS_SOURCE)) {
+    map.addSource(MARKERS_SOURCE, {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+      buffer: mobile ? 0 : 32,
+    })
+  }
 
   if (!map.hasImage('trail-warning-icon')) {
     const size = 128
@@ -213,7 +269,8 @@ function ensureMarkerLayers(map: MapLibreMap) {
     map.setLayoutProperty(MARKERS_LAYER, 'icon-size', MARKER_ICON_SIZE)
   }
 
-  if (!map.getLayer(MARKERS_HIT)) {
+  // Invisible hit circles are expensive fill; on mobile we pad queryRenderedFeatures instead.
+  if (!mobile && !map.getLayer(MARKERS_HIT)) {
     map.addLayer({
       id: MARKERS_HIT,
       type: 'circle',
@@ -223,7 +280,7 @@ function ensureMarkerLayers(map: MapLibreMap) {
         'circle-opacity': 0.01,
       },
     })
-  } else {
+  } else if (!mobile && map.getLayer(MARKERS_HIT)) {
     map.setPaintProperty(MARKERS_HIT, 'circle-radius', MARKER_HIT_RADIUS)
   }
 }
@@ -234,8 +291,8 @@ function ensureTrackLayers(map: MapLibreMap, mobile: boolean) {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] },
       // Higher tolerance = cheaper geometry at low zoom (mobile GPUs benefit most).
-      tolerance: mobile ? 1.25 : 0.5,
-      buffer: mobile ? 32 : 64,
+      tolerance: mobile ? 2 : 0.5,
+      buffer: mobile ? 0 : 64,
     })
   }
   if (!map.getLayer(TRACKS_CASING) && !mobile) {
@@ -264,7 +321,7 @@ function ensureTrackLayers(map: MapLibreMap, mobile: boolean) {
       },
     })
   }
-  if (!map.getLayer(TRACKS_HIT)) {
+  if (!mobile && !map.getLayer(TRACKS_HIT)) {
     map.addLayer({
       id: TRACKS_HIT,
       type: 'line',
@@ -272,7 +329,7 @@ function ensureTrackLayers(map: MapLibreMap, mobile: boolean) {
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: {
         'line-color': '#000000',
-        'line-width': mobile ? 22 : 18,
+        'line-width': 18,
         'line-opacity': 0.01,
       },
     })
@@ -308,6 +365,8 @@ export function MapView({
   const followGpsRef = useRef(followGps)
   const placementModeRef = useRef(placementMode)
   const mobileRef = useRef(false)
+  const basemapRef = useRef<BasemapId>('streets')
+  const basemapControlRef = useRef<BasemapToggleControl | null>(null)
   const onMapReadyRef = useRef(onMapReady)
   const onFollowChangeRef = useRef(onFollowChange)
   const onPlaceLocationRef = useRef(onPlaceLocation)
@@ -327,24 +386,29 @@ export function MapView({
 
     const mobile = isMobileMapDevice()
     mobileRef.current = mobile
+    basemapRef.current = 'streets'
 
     let map: MapLibreMap
     try {
       map = new maplibregl.Map({
         container: containerRef.current,
-        style: buildMapStyle(mobile),
+        style: buildMapStyle(),
         center: [-98.5795, 39.8283],
         zoom: 3.5,
         interactive,
         attributionControl: false,
-        // Cap DPR on phones — retina canvases are a major fill-rate cost while panning.
-        pixelRatio: mobile ? Math.min(window.devicePixelRatio || 1, 1.5) : undefined,
+        // 1× canvas on phones — retina fill-rate is a top pan/zoom cost.
+        pixelRatio: mobile ? 1 : undefined,
         fadeDuration: 0,
-        maxTileCacheSize: mobile ? 40 : 80,
+        maxTileCacheSize: mobile ? 24 : 80,
+        maxTileCacheZoomLevels: mobile ? 2 : 5,
+        cancelPendingTileRequestsWhileZooming: true,
+        refreshExpiredTiles: false,
         renderWorldCopies: false,
         dragRotate: !mobile,
         pitchWithRotate: false,
         touchPitch: !mobile,
+        trackResize: true,
       })
     } catch (err) {
       console.error('Failed to create map', err)
@@ -357,10 +421,33 @@ export function MapView({
       map.addControl(new maplibregl.NavigationControl({ visualizePitch: false }), 'top-right')
     }
 
-    const showMarkerPopup = (e: MapMouseEvent) => {
-      if (!map.getLayer(MARKERS_HIT)) return false
+    const applyBasemap = (mode: BasemapId) => {
+      basemapRef.current = mode
+      setBasemap(map, mode)
+      basemapControlRef.current?.sync()
+    }
 
-      const features = map.queryRenderedFeatures(e.point, { layers: [MARKERS_HIT] })
+    if (mobile) {
+      const basemapControl = new BasemapToggleControl(
+        () => basemapRef.current,
+        () => applyBasemap(basemapRef.current === 'satellite' ? 'streets' : 'satellite'),
+      )
+      basemapControlRef.current = basemapControl
+      map.addControl(basemapControl, 'top-right')
+    } else {
+      // Desktop: hard-swap by zoom — never composite both tile stacks.
+      const syncDesktopBasemap = () => {
+        applyBasemap(map.getZoom() >= DESKTOP_SAT_ZOOM ? 'satellite' : 'streets')
+      }
+      map.on('load', syncDesktopBasemap)
+      map.on('zoomend', syncDesktopBasemap)
+    }
+
+    const hitPad = mobile ? 18 : 0
+
+    const showMarkerPopup = (e: MapMouseEvent) => {
+      const layers = mobile ? [MARKERS_LAYER] : [MARKERS_HIT, MARKERS_LAYER]
+      const features = queryHitFeatures(map, e.point, layers, hitPad)
       const props = features[0]?.properties as
         | { id?: string; kind?: string; label?: string; note?: string }
         | undefined
@@ -417,9 +504,8 @@ export function MapView({
 
       if (showMarkerPopup(e)) return
 
-      if (!map.getLayer(TRACKS_HIT)) return
-
-      const features = map.queryRenderedFeatures(e.point, { layers: [TRACKS_HIT] })
+      const layers = mobile ? [TRACKS_LINE] : [TRACKS_HIT, TRACKS_LINE]
+      const features = queryHitFeatures(map, e.point, layers, hitPad)
       const props = features[0]?.properties as
         | { id?: string; name?: string; skillLevel?: string }
         | undefined
@@ -476,16 +562,15 @@ export function MapView({
           return
         }
 
-        if (map.getLayer(MARKERS_HIT)) {
-          const onMarker = map.queryRenderedFeatures(e.point, { layers: [MARKERS_HIT] }).length > 0
-          if (onMarker) {
-            map.getCanvas().style.cursor = 'pointer'
-            return
-          }
+        const onMarker =
+          queryHitFeatures(map, e.point, [MARKERS_HIT, MARKERS_LAYER], 0).length > 0
+        if (onMarker) {
+          map.getCanvas().style.cursor = 'pointer'
+          return
         }
 
-        if (!map.getLayer(TRACKS_HIT)) return
-        const hovering = map.queryRenderedFeatures(e.point, { layers: [TRACKS_HIT] }).length > 0
+        const hovering =
+          queryHitFeatures(map, e.point, [TRACKS_HIT, TRACKS_LINE], 0).length > 0
         map.getCanvas().style.cursor = hovering ? 'pointer' : ''
       })
     }
@@ -510,6 +595,7 @@ export function MapView({
       markerPopupRef.current?.remove()
       markerPopupRef.current = null
       accuracyZoomBoundRef.current = false
+      basemapControlRef.current = null
       onMapReadyRef.current?.(null)
       map.remove()
       mapRef.current = null
@@ -538,7 +624,7 @@ export function MapView({
     if (!map) return
 
     const apply = () => {
-      ensureMarkerLayers(map)
+      ensureMarkerLayers(map, mobileRef.current)
       const source = map.getSource(MARKERS_SOURCE) as GeoJSONSource | undefined
       source?.setData(markersToGeoJson(markers))
     }
@@ -587,19 +673,20 @@ export function MapView({
       gpsMarkerRef.current.setLngLat([gps.lng, gps.lat])
     }
 
-    const updateAccuracySize = () => {
-      const el = accuracyElRef.current
-      const accuracy = gpsAccuracyRef.current
-      if (!el || accuracy == null || accuracy <= 0) return
-      const metersPerPx =
-        (40075016.686 * Math.abs(Math.cos((gpsLatRef.current * Math.PI) / 180))) /
-        Math.pow(2, map.getZoom() + 8)
-      const px = Math.max(12, (accuracy / metersPerPx) * 2)
-      el.style.width = `${px}px`
-      el.style.height = `${px}px`
-    }
+    // Accuracy ring is a DOM marker resized on every zoom — skip on mobile.
+    if (!mobileRef.current && gps.accuracy != null && gps.accuracy > 0) {
+      const updateAccuracySize = () => {
+        const el = accuracyElRef.current
+        const accuracy = gpsAccuracyRef.current
+        if (!el || accuracy == null || accuracy <= 0) return
+        const metersPerPx =
+          (40075016.686 * Math.abs(Math.cos((gpsLatRef.current * Math.PI) / 180))) /
+          Math.pow(2, map.getZoom() + 8)
+        const px = Math.max(12, (accuracy / metersPerPx) * 2)
+        el.style.width = `${px}px`
+        el.style.height = `${px}px`
+      }
 
-    if (gps.accuracy != null && gps.accuracy > 0) {
       if (!accuracyMarkerRef.current) {
         const node = document.createElement('div')
         node.className = 'gps-accuracy'

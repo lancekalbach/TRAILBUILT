@@ -1106,6 +1106,20 @@ input {
   height: 34px;
 }
 
+.map-basemap-ctrl .map-basemap-btn {
+  width: 44px;
+  height: 34px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: #333;
+}
+
+.map-basemap-ctrl .map-basemap-btn[aria-pressed='true'] {
+  background: #e8e8e8;
+}
+
 .map-error {
   position: absolute;
   inset: 0;
