@@ -5,6 +5,14 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import type { GpsPosition, MarkerPlacementMode, TrailMarker, TrailTrack } from '../types'
 import { trackBounds, tracksToGeoJson } from '../lib/gpx'
 import { markersToGeoJson, markerKindIconSvg, markerKindMeta } from '../lib/markers'
+import {
+  isInsidePbrRegion,
+  PBR_CENTER,
+  PBR_DEFAULT_ZOOM,
+  PBR_MAX_BOUNDS,
+  PBR_MAX_ZOOM,
+  PBR_MIN_ZOOM,
+} from '../lib/mapRegion'
 import { nearestPointOnTrails } from '../lib/trailGeometry'
 
 function prefersReducedMotion(): boolean {
@@ -26,7 +34,7 @@ const DESKTOP_SAT_ZOOM = 13.5
 
 /**
  * Exclusive basemap style — never composite OSM + satellite.
- * Opacity crossfades still load/decode both tile stacks; visibility swaps do not.
+ * Source minzoom matches the regional camera so we never request world tiles.
  */
 function buildMapStyle(): maplibregl.StyleSpecification {
   return {
@@ -40,6 +48,9 @@ function buildMapStyle(): maplibregl.StyleSpecification {
           'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
         ],
         tileSize: 256,
+        // Below regional min zoom we never show the map — skip z0–z9 world tiles.
+        minzoom: Math.max(0, PBR_MIN_ZOOM - 1),
+        maxzoom: 19,
         attribution: '© OpenStreetMap contributors',
       },
       satellite: {
@@ -48,6 +59,7 @@ function buildMapStyle(): maplibregl.StyleSpecification {
           'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         ],
         tileSize: 256,
+        minzoom: Math.max(0, PBR_MIN_ZOOM - 1),
         maxzoom: 19,
         attribution:
           'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
@@ -58,16 +70,12 @@ function buildMapStyle(): maplibregl.StyleSpecification {
         id: OSM_LAYER,
         type: 'raster',
         source: 'osm',
-        minzoom: 0,
-        maxzoom: 19,
         layout: { visibility: 'visible' },
       },
       {
         id: SATELLITE_LAYER,
         type: 'raster',
         source: 'satellite',
-        minzoom: 0,
-        maxzoom: 22,
         layout: { visibility: 'none' },
       },
     ],
@@ -393,8 +401,11 @@ export function MapView({
       map = new maplibregl.Map({
         container: containerRef.current,
         style: buildMapStyle(),
-        center: [-98.5795, 39.8283],
-        zoom: 3.5,
+        center: PBR_CENTER,
+        zoom: PBR_DEFAULT_ZOOM,
+        minZoom: PBR_MIN_ZOOM,
+        maxZoom: PBR_MAX_ZOOM,
+        maxBounds: PBR_MAX_BOUNDS,
         interactive,
         attributionControl: false,
         // 1× canvas on phones — retina fill-rate is a top pan/zoom cost.
@@ -709,7 +720,7 @@ export function MapView({
       }
     }
 
-    if (followGpsRef.current) {
+    if (followGpsRef.current && isInsidePbrRegion(gps.lng, gps.lat)) {
       // jumpTo avoids stacking easeTo animations on every GPS tick.
       map.jumpTo({ center: [gps.lng, gps.lat] })
     }

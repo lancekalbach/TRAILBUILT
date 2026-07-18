@@ -91,23 +91,16 @@ export default function App() {
   useEffect(() => {
     if (didInitialCamera.current || !map || loading) return
 
-    if (gps) {
-      didInitialCamera.current = true
-      flyToGps(map, gps, 11)
-      return
-    }
-
     const bounds = pbrNetworkBounds(tracks)
     if (!bounds) return
 
-    const timer = window.setTimeout(() => {
-      if (didInitialCamera.current) return
-      didInitialCamera.current = true
-      map.fitBounds(bounds, { padding: 64, duration: 900, maxZoom: 14 })
-    }, 1500)
-
-    return () => window.clearTimeout(timer)
-  }, [map, gps, tracks, loading])
+    didInitialCamera.current = true
+    map.fitBounds(bounds, {
+      padding: 56,
+      duration: 0,
+      maxZoom: 14,
+    })
+  }, [map, tracks, loading])
 
   useEffect(() => {
     if (view !== 'map' || !map) return
@@ -121,6 +114,9 @@ export default function App() {
       setPlacementMode('idle')
       setPendingLocation(null)
       setDetailMarkerId(null)
+      // Drop the WebGL map while on home — it was staying alive and fetching tiles.
+      setMap(null)
+      didInitialCamera.current = false
     }
   }, [view])
 
@@ -173,8 +169,11 @@ export default function App() {
       setGpsError((prev) => prev ?? 'Waiting for location permission…')
       return
     }
+    if (!flyToGps(map, gps)) {
+      setGpsError('Location is outside the Priest Ridge map area.')
+      return
+    }
     setFollowGps(true)
-    flyToGps(map, gps)
   }
 
   function handleStartSelectLocation() {
@@ -238,21 +237,23 @@ export default function App() {
         >
           <div className={`map-page ${placementMode === 'selecting' ? 'is-placing' : ''}`}>
             <MapErrorBoundary>
-              <MapView
-                tracks={tracks}
-                markers={markers}
-                gps={gps}
-                followGps={followGps}
-                onFollowChange={handleFollowChange}
-                onMapReady={handleMapReady}
-                focusTrackId={focusTrackId}
-                placementMode={placementMode}
-                onPlaceLocation={handlePlaceLocation}
-                onOpenMarkerDetail={(id) => {
-                  setMenuOpen(false)
-                  setDetailMarkerId(id)
-                }}
-              />
+              {view === 'map' && (
+                <MapView
+                  tracks={tracks}
+                  markers={markers}
+                  gps={gps}
+                  followGps={followGps}
+                  onFollowChange={handleFollowChange}
+                  onMapReady={handleMapReady}
+                  focusTrackId={focusTrackId}
+                  placementMode={placementMode}
+                  onPlaceLocation={handlePlaceLocation}
+                  onOpenMarkerDetail={(id) => {
+                    setMenuOpen(false)
+                    setDetailMarkerId(id)
+                  }}
+                />
+              )}
             </MapErrorBoundary>
 
             {detailMarker && (
