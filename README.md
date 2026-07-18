@@ -13,9 +13,9 @@ Open the URL Vite prints (usually `http://localhost:5173`). On a phone, use your
 
 ## Deploy on Railway
 
-This repo is set up for Railway with a multi-stage Docker build (Vite → Caddy).
+Railway builds with Nixpacks (`npm run build`) and serves the static site with `serve`.
 
-1. Create a new Railway project and deploy from the GitHub repo (`lancekalbach/TRAILBUILT`).
+1. Deploy from the GitHub repo (`lancekalbach/TRAILBUILT`).
 2. In the service **Settings → Networking**, click **Generate Domain**.
 3. No environment variables are required — trails and markers stay in the browser (IndexedDB).
 

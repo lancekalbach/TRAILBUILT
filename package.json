@@ -6,13 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "start": "serve -s dist -l $PORT",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
     "maplibre-gl": "^5.24.0",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "serve": "^14.2.6"
   },
   "devDependencies": {
     "@types/node": "^24.13.2",
