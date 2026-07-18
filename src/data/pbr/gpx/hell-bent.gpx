@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<gpx version="1.1" creator="Trailforks.com" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd http://www.garmin.com/xmlschemas/TrackPointExtension/v1 http://www.garmin.com/xmlschemas/TrackPointExtensionv1.xsd">
+<metadata>
+<name>Hell Bent Trailforks Trail</name>
+<link href="https://www.trailforks.com/">
+<text>Trailforks</text>
+</link>
+</metadata>
+<trk>
+<name>
+Hell Bent
+</name>
+<trkseg>
+<trkpt lat="48.15114" lon="-116.52797">
+<ele>1174</ele>
+<time>2026-04-08T06:51:52-07:00</time>
+</trkpt>
+<trkpt lat="48.15111" lon="-116.52802">
+<ele>1173.5</ele>
+<time>2026-04-08T06:51:53-07:00</time>
+</trkpt>
+<trkpt lat="48.15109" lon="-116.52809">
+<ele>1173.5</ele>
+<time>2026-04-08T06:51:54-07:00</time>
+</trkpt>
+<trkpt lat="48.15109" lon="-116.52814">
+<ele>1173.5</ele>
+<time>2026-04-08T06:51:55-07:00</time>
+</trkpt>
+<trkpt lat="48.15114" lon="-116.52819">
+<ele>1173.9</ele>
+<time>2026-04-08T06:51:56-07:00</time>
+</trkpt>
+<trkpt lat="48.15122" lon="-116.52825">
+<ele>1173.9</ele>
+<time>2026-04-08T06:51:57-07:00</time>
+</trkpt>
+<trkpt lat="48.1513" lon="-116.5283">
+<ele>1173.4</ele>
+<time>2026-04-08T06:51:58-07:00</time>
+</trkpt>
+<trkpt lat="48.15135" lon="-116.52833">
+<ele>1173.4</ele>
+<time>2026-04-08T06:51:59-07:00</time>
+</trkpt>
+<trkpt lat="48.15141" lon="-116.52836">
+<ele>1170.1</ele>
+<time>2026-04-08T06:52:00-07:00</time>
+</trkpt>
+<trkpt lat="48.15156" lon="-116.52837">
+<ele>1166.9</ele>
+<time>2026-04-08T06:52:01-07:00</time>
+</trkpt>
+<trkpt lat="48.15163" lon="-116.52833">
+<ele>1165</ele>
+<time>2026-04-08T06:52:02-07:00</time>
+</trkpt>
+<trkpt lat="48.15167" lon="-116.52825">
+<ele>1161</ele>
+<time>2026-04-08T06:52:03-07:00</time>
+</trkpt>
+<trkpt lat="48.15168" lon="-116.52815">
+<ele>1162.4</ele>
+<time>2026-04-08T06:52:04-07:00</time>
+</trkpt>
+<trkpt lat="48.15171" lon="-116.52804">
+<ele>1164.9</ele>
+<time>2026-04-08T06:52:05-07:00</time>
+</trkpt>
+<trkpt lat="48.15175" lon="-116.52797">
+<ele>1164.9</ele>
+<time>2026-04-08T06:52:06-07:00</time>
+</trkpt>
+<trkpt lat="48.15179" lon="-116.52789">
+<ele>1161.7</ele>
+<time>2026-04-08T06:52:07-07:00</time>
+</trkpt>
+<trkpt lat="48.15183" lon="-116.52779">
+<ele>1162.5</ele>
+<time>2026-04-08T06:52:08-07:00</time>
+</trkpt>
+<trkpt lat="48.15185" lon="-116.52769">
+<ele>1163.3</ele>
+<time>2026-04-08T06:52:09-07:00</time>
+</trkpt>
+<trkpt lat="48.15189" lon="-116.5276">
+<ele>1159.1</ele>
+<time>2026-04-08T06:52:10-07:00</time>
+</trkpt>
+<trkpt lat="48.15195" lon="-116.52751">
+<ele>1154.1</ele>
+<time>2026-04-08T06:52:11-07:00</time>
+</trkpt>
+<trkpt lat="48.15198" lon="-116.52742">
+<ele>1155.6</ele>
+<time>2026-04-08T06:52:12-07:00</time>
+</trkpt>
+<trkpt lat="48.152" lon="-116.52732">
+<ele>1157</ele>
+<time>2026-04-08T06:52:13-07:00</time>
+</trkpt>
+<trkpt lat="48.152" lon="-116.52718">
+<ele>1159.1</ele>
+<time>2026-04-08T06:52:14-07:00</time>
+</trkpt>
+<trkpt lat="48.15201" lon="-116.52703">
+<ele>1159.9</ele>
+<time>2026-04-08T06:52:15-07:00</time>
+</trkpt>
+<trkpt lat="48.15203" lon="-116.52691">
+<ele>1160.1</ele>
+<time>2026-04-08T06:52:16-07:00</time>
+</trkpt>
+<trkpt lat="48.15208" lon="-116.5268">
+<ele>1155.7</ele>
+<time>2026-04-08T06:52:17-07:00</time>
+</trkpt>
+<trkpt lat="48.15213" lon="-116.52673">
+<ele>1151.2</ele>
+<time>2026-04-08T06:52:18-07:00</time>
+</trkpt>
+<trkpt lat="48.15218" lon="-116.5267">
+<ele>1151.2</ele>
+<time>2026-04-08T06:52:19-07:00</time>
+</trkpt>
+<trkpt lat="48.1522" lon="-116.52664">
+<ele>1151.8</ele>
+<time>2026-04-08T06:52:20-07:00</time>
+</trkpt>
+<trkpt lat="48.15221" lon="-116.52658">
+<ele>1151.8</ele>
+<time>2026-04-08T06:52:21-07:00</time>
+</trkpt>
+<trkpt lat="48.15219" lon="-116.52649">
+<ele>1152.6</ele>
+<time>2026-04-08T06:52:22-07:00</time>
+</trkpt>
+<trkpt lat="48.15218" lon="-116.5264">
+<ele>1153.6</ele>
+<time>2026-04-08T06:52:23-07:00</time>
+</trkpt>
+<trkpt lat="48.15221" lon="-116.52631">
+<ele>1154.8</ele>
+<time>2026-04-08T06:52:24-07:00</time>
+</trkpt>
+<trkpt lat="48.15222" lon="-116.52624">
+<ele>1156.3</ele>
+<time>2026-04-08T06:52:25-07:00</time>
+</trkpt>
+<trkpt lat="48.15222" lon="-116.52619">
+<ele>1157.6</ele>
+<time>2026-04-08T06:52:26-07:00</time>
+</trkpt>
+<trkpt lat="48.15221" lon="-116.52613">
+<ele>1157.6</ele>
+<time>2026-04-08T06:52:27-07:00</time>
+</trkpt>
+<trkpt lat="48.15222" lon="-116.52607">
+<ele>1158.3</ele>
+<time>2026-04-08T06:52:28-07:00</time>
+</trkpt>
+<trkpt lat="48.15227" lon="-116.52586">
+<ele>1153.8</ele>
+<time>2026-04-08T06:52:29-07:00</time>
+</trkpt>
+<trkpt lat="48.1523" lon="-116.52577">
+<ele>1154.5</ele>
+<time>2026-04-08T06:52:30-07:00</time>
+</trkpt>
+<trkpt lat="48.15234" lon="-116.52572">
+<ele>1148.8</ele>
+<time>2026-04-08T06:52:31-07:00</time>
+</trkpt>
+<trkpt lat="48.15237" lon="-116.52567">
+<ele>1148.8</ele>
+<time>2026-04-08T06:52:32-07:00</time>
+</trkpt>
+<trkpt lat="48.15241" lon="-116.52565">
+<ele>1142.8</ele>
+<time>2026-04-08T06:52:33-07:00</time>
+</trkpt>
+<trkpt lat="48.15244" lon="-116.52567">
+<ele>1142.8</ele>
+<time>2026-04-08T06:52:34-07:00</time>
+</trkpt>
+<trkpt lat="48.15248" lon="-116.52566">
+<ele>1142.8</ele>
+<time>2026-04-08T06:52:35-07:00</time>
+</trkpt>
+<trkpt lat="48.1525" lon="-116.52561">
+<ele>1137.8</ele>
+<time>2026-04-08T06:52:36-07:00</time>
+</trkpt>
+<trkpt lat="48.15254" lon="-116.52548">
+<ele>1138.7</ele>
+<time>2026-04-08T06:52:37-07:00</time>
+</trkpt>
+<trkpt lat="48.15255" lon="-116.52546">
+<ele>1139.5</ele>
+<time>2026-04-08T06:52:38-07:00</time>
+</trkpt>
+<trkpt lat="48.15257" lon="-116.52544">
+<ele>1139.5</ele>
+<time>2026-04-08T06:52:39-07:00</time>
+</trkpt>
+<trkpt lat="48.15258" lon="-116.52545">
+<ele>1139.5</ele>
+<time>2026-04-08T06:52:40-07:00</time>
+</trkpt>
+<trkpt lat="48.1526" lon="-116.52548">
+<ele>1133.6</ele>
+<time>2026-04-08T06:52:41-07:00</time>
+</trkpt>
+</trkseg>
+</trk>
+</gpx>

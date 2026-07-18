@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<gpx version="1.1" creator="Trailforks.com" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+<metadata>
+<name>Bar Dog (upper) Trailforks Trail</name>
+<link href="https://www.trailforks.com/">
+<text>Trailforks</text>
+</link>
+</metadata>
+<trk>
+<name>
+Bar Dog (upper)
+</name>
+<trkseg>
+<trkpt lat="48.15485" lon="-116.5263">
+<ele>996.4</ele>
+<time>2025-04-26T11:43:10-07:00</time>
+</trkpt>
+<trkpt lat="48.15493" lon="-116.52626">
+<ele>994.3</ele>
+<time>2025-04-26T11:43:11-07:00</time>
+</trkpt>
+<trkpt lat="48.15515" lon="-116.52617">
+<ele>986.9</ele>
+<time>2025-04-26T11:43:12-07:00</time>
+</trkpt>
+<trkpt lat="48.15526" lon="-116.52606">
+<ele>984.4</ele>
+<time>2025-04-26T11:43:13-07:00</time>
+</trkpt>
+<trkpt lat="48.15532" lon="-116.52601">
+<ele>983.3</ele>
+<time>2025-04-26T11:43:14-07:00</time>
+</trkpt>
+<trkpt lat="48.15534" lon="-116.52595">
+<ele>983.3</ele>
+<time>2025-04-26T11:43:15-07:00</time>
+</trkpt>
+<trkpt lat="48.15537" lon="-116.52595">
+<ele>983.3</ele>
+<time>2025-04-26T11:43:16-07:00</time>
+</trkpt>
+<trkpt lat="48.15537" lon="-116.52601">
+<ele>983.3</ele>
+<time>2025-04-26T11:43:17-07:00</time>
+</trkpt>
+<trkpt lat="48.15537" lon="-116.52607">
+<ele>980.5</ele>
+<time>2025-04-26T11:43:18-07:00</time>
+</trkpt>
+<trkpt lat="48.15535" lon="-116.52614">
+<ele>977.8</ele>
+<time>2025-04-26T11:43:19-07:00</time>
+</trkpt>
+<trkpt lat="48.15522" lon="-116.5264">
+<ele>977.1</ele>
+<time>2025-04-26T11:43:20-07:00</time>
+</trkpt>
+</trkseg>
+</trk>
+</gpx>

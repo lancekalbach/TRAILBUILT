@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<gpx version="1.1" creator="Trailforks.com" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+<metadata>
+<name>Panhandle Bike Ranch Access Road Trailforks Trail</name>
+<link href="https://www.trailforks.com/">
+<text>Trailforks</text>
+</link>
+</metadata>
+<trk>
+<name>
+Panhandle Bike Ranch Access Road
+</name>
+<trkseg>
+<trkpt lat="48.15967" lon="-116.53323">
+<ele>762.6</ele>
+<time>2025-04-26T11:57:50-07:00</time>
+</trkpt>
+<trkpt lat="48.15958" lon="-116.53326">
+<ele>763.2</ele>
+<time>2025-04-26T11:57:51-07:00</time>
+</trkpt>
+<trkpt lat="48.15948" lon="-116.53329">
+<ele>764.6</ele>
+<time>2025-04-26T11:57:52-07:00</time>
+</trkpt>
+<trkpt lat="48.15938" lon="-116.53331">
+<ele>765.9</ele>
+<time>2025-04-26T11:57:53-07:00</time>
+</trkpt>
+<trkpt lat="48.15929" lon="-116.53334">
+<ele>766.3</ele>
+<time>2025-04-26T11:57:54-07:00</time>
+</trkpt>
+<trkpt lat="48.15919" lon="-116.53337">
+<ele>767.6</ele>
+<time>2025-04-26T11:57:55-07:00</time>
+</trkpt>
+<trkpt lat="48.15909" lon="-116.5334">
+<ele>768.8</ele>
+<time>2025-04-26T11:57:56-07:00</time>
+</trkpt>
+<trkpt lat="48.15899" lon="-116.53342">
+<ele>770.1</ele>
+<time>2025-04-26T11:57:57-07:00</time>
+</trkpt>
+<trkpt lat="48.15888" lon="-116.53354">
+<ele>771.4</ele>
+<time>2025-04-26T11:57:58-07:00</time>
+</trkpt>
+<trkpt lat="48.15876" lon="-116.53365">
+<ele>772.1</ele>
+<time>2025-04-26T11:57:59-07:00</time>
+</trkpt>
+<trkpt lat="48.1587" lon="-116.53376">
+<ele>773</ele>
+<time>2025-04-26T11:58:00-07:00</time>
+</trkpt>
+<trkpt lat="48.15864" lon="-116.53386">
+<ele>772.2</ele>
+<time>2025-04-26T11:58:01-07:00</time>
+</trkpt>
+<trkpt lat="48.15857" lon="-116.53396">
+<ele>773</ele>
+<time>2025-04-26T11:58:02-07:00</time>
+</trkpt>
+<trkpt lat="48.15851" lon="-116.53406">
+<ele>774</ele>
+<time>2025-04-26T11:58:03-07:00</time>
+</trkpt>
+<trkpt lat="48.15845" lon="-116.53416">
+<ele>773.2</ele>
+<time>2025-04-26T11:58:04-07:00</time>
+</trkpt>
+<trkpt lat="48.15839" lon="-116.53427">
+<ele>773.2</ele>
+<time>2025-04-26T11:58:05-07:00</time>
+</trkpt>
+<trkpt lat="48.15832" lon="-116.53437">
+<ele>774.1</ele>
+<time>2025-04-26T11:58:06-07:00</time>
+</trkpt>
+<trkpt lat="48.15826" lon="-116.53447">
+<ele>773.3</ele>
+<time>2025-04-26T11:58:07-07:00</time>
+</trkpt>
+<trkpt lat="48.1582" lon="-116.53457">
+<ele>774.3</ele>
+<time>2025-04-26T11:58:08-07:00</time>
+</trkpt>
+<trkpt lat="48.15813" lon="-116.53467">
+<ele>775.3</ele>
+<time>2025-04-26T11:58:09-07:00</time>
+</trkpt>
+<trkpt lat="48.15807" lon="-116.53477">
+<ele>774.4</ele>
+<time>2025-04-26T11:58:10-07:00</time>
+</trkpt>
+<trkpt lat="48.15801" lon="-116.53488">
+<ele>775.4</ele>
+<time>2025-04-26T11:58:11-07:00</time>
+</trkpt>
+<trkpt lat="48.15794" lon="-116.53498">
+<ele>776.3</ele>
+<time>2025-04-26T11:58:12-07:00</time>
+</trkpt>
+<trkpt lat="48.15788" lon="-116.53508">
+<ele>775.4</ele>
+<time>2025-04-26T11:58:13-07:00</time>
+</trkpt>
+</trkseg>
+</trk>
+</gpx>

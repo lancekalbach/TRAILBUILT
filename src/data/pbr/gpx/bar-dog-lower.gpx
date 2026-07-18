@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<gpx version="1.1" creator="Trailforks.com" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+<metadata>
+<name>Bar Dog (lower) Trailforks Trail</name>
+<link href="https://www.trailforks.com/">
+<text>Trailforks</text>
+</link>
+</metadata>
+<trk>
+<name>
+Bar Dog (lower)
+</name>
+<trkseg>
+<trkpt lat="48.15624" lon="-116.53054">
+<ele>880.4</ele>
+<time>2025-04-26T11:38:19-07:00</time>
+</trkpt>
+<trkpt lat="48.15625" lon="-116.53064">
+<ele>878.9</ele>
+<time>2025-04-26T11:38:20-07:00</time>
+</trkpt>
+<trkpt lat="48.15625" lon="-116.53073">
+<ele>877.6</ele>
+<time>2025-04-26T11:38:21-07:00</time>
+</trkpt>
+<trkpt lat="48.15625" lon="-116.53077">
+<ele>876.9</ele>
+<time>2025-04-26T11:38:22-07:00</time>
+</trkpt>
+<trkpt lat="48.15623" lon="-116.53082">
+<ele>876.9</ele>
+<time>2025-04-26T11:38:23-07:00</time>
+</trkpt>
+<trkpt lat="48.15621" lon="-116.53087">
+<ele>876.4</ele>
+<time>2025-04-26T11:38:24-07:00</time>
+</trkpt>
+<trkpt lat="48.15621" lon="-116.53093">
+<ele>875.7</ele>
+<time>2025-04-26T11:38:25-07:00</time>
+</trkpt>
+<trkpt lat="48.15623" lon="-116.53104">
+<ele>874.8</ele>
+<time>2025-04-26T11:38:26-07:00</time>
+</trkpt>
+<trkpt lat="48.15623" lon="-116.53112">
+<ele>873.9</ele>
+<time>2025-04-26T11:38:27-07:00</time>
+</trkpt>
+<trkpt lat="48.15622" lon="-116.5312">
+<ele>873.9</ele>
+<time>2025-04-26T11:38:28-07:00</time>
+</trkpt>
+<trkpt lat="48.15617" lon="-116.53136">
+<ele>875.2</ele>
+<time>2025-04-26T11:38:29-07:00</time>
+</trkpt>
+<trkpt lat="48.1562" lon="-116.53139">
+<ele>873.6</ele>
+<time>2025-04-26T11:38:30-07:00</time>
+</trkpt>
+<trkpt lat="48.15628" lon="-116.53137">
+<ele>871.8</ele>
+<time>2025-04-26T11:38:31-07:00</time>
+</trkpt>
+<trkpt lat="48.15635" lon="-116.5313">
+<ele>868.1</ele>
+<time>2025-04-26T11:38:32-07:00</time>
+</trkpt>
+<trkpt lat="48.15639" lon="-116.53133">
+<ele>863.6</ele>
+<time>2025-04-26T11:38:33-07:00</time>
+</trkpt>
+<trkpt lat="48.15641" lon="-116.53138">
+<ele>863.6</ele>
+<time>2025-04-26T11:38:34-07:00</time>
+</trkpt>
+<trkpt lat="48.15641" lon="-116.53144">
+<ele>862.3</ele>
+<time>2025-04-26T11:38:35-07:00</time>
+</trkpt>
+<trkpt lat="48.15638" lon="-116.5315">
+<ele>864.9</ele>
+<time>2025-04-26T11:38:36-07:00</time>
+</trkpt>
+<trkpt lat="48.15637" lon="-116.53155">
+<ele>864.9</ele>
+<time>2025-04-26T11:38:37-07:00</time>
+</trkpt>
+<trkpt lat="48.15638" lon="-116.5316">
+<ele>862.7</ele>
+<time>2025-04-26T11:38:38-07:00</time>
+</trkpt>
+<trkpt lat="48.15641" lon="-116.5316">
+<ele>858.3</ele>
+<time>2025-04-26T11:38:39-07:00</time>
+</trkpt>
+<trkpt lat="48.15644" lon="-116.53156">
+<ele>860.5</ele>
+<time>2025-04-26T11:38:40-07:00</time>
+</trkpt>
+<trkpt lat="48.15646" lon="-116.53152">
+<ele>860.5</ele>
+<time>2025-04-26T11:38:41-07:00</time>
+</trkpt>
+<trkpt lat="48.15651" lon="-116.53138">
+<ele>859</ele>
+<time>2025-04-26T11:38:42-07:00</time>
+</trkpt>
+<trkpt lat="48.15655" lon="-116.53114">
+<ele>860.3</ele>
+<time>2025-04-26T11:38:43-07:00</time>
+</trkpt>
+<trkpt lat="48.15662" lon="-116.53099">
+<ele>856.8</ele>
+<time>2025-04-26T11:38:44-07:00</time>
+</trkpt>
+<trkpt lat="48.15666" lon="-116.53094">
+<ele>856.8</ele>
+<time>2025-04-26T11:38:45-07:00</time>
+</trkpt>
+<trkpt lat="48.15669" lon="-116.53093">
+<ele>852.7</ele>
+<time>2025-04-26T11:38:46-07:00</time>
+</trkpt>
+<trkpt lat="48.15673" lon="-116.53092">
+<ele>853.3</ele>
+<time>2025-04-26T11:38:47-07:00</time>
+</trkpt>
+<trkpt lat="48.15675" lon="-116.53096">
+<ele>852.7</ele>
+<time>2025-04-26T11:38:48-07:00</time>
+</trkpt>
+<trkpt lat="48.15676" lon="-116.53102">
+<ele>848.3</ele>
+<time>2025-04-26T11:38:49-07:00</time>
+</trkpt>
+<trkpt lat="48.15678" lon="-116.53108">
+<ele>848.3</ele>
+<time>2025-04-26T11:38:50-07:00</time>
+</trkpt>
+<trkpt lat="48.15681" lon="-116.53111">
+<ele>848.3</ele>
+<time>2025-04-26T11:38:51-07:00</time>
+</trkpt>
+<trkpt lat="48.15682" lon="-116.53113">
+<ele>847.8</ele>
+<time>2025-04-26T11:38:52-07:00</time>
+</trkpt>
+<trkpt lat="48.15682" lon="-116.53117">
+<ele>847.8</ele>
+<time>2025-04-26T11:38:53-07:00</time>
+</trkpt>
+<trkpt lat="48.1568" lon="-116.53122">
+<ele>847</ele>
+<time>2025-04-26T11:38:54-07:00</time>
+</trkpt>
+</trkseg>
+</trk>
+</gpx>
