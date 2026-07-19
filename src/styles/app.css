@@ -98,11 +98,32 @@ input {
 .map-page .map-root {
   position: absolute;
   inset: 0;
-  /*
-   * Do NOT put transform / contain:paint on this node.
-   * Leaflet pinch-zoom CSS-scales .leaflet-map-pane every frame; a transformed
-   * or paint-contained ancestor forces an extra full-map composite and feels laggy.
-   */
+}
+
+.trail-popup .maplibregl-popup-content {
+  padding: 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+
+.trail-popup .maplibregl-popup-close-button {
+  color: var(--muted);
+  font-size: 18px;
+  padding: 4px 8px;
+  width: auto;
+  height: auto;
+}
+
+.trail-popup .maplibregl-popup-close-button:hover {
+  background: transparent;
+  color: var(--text);
+}
+
+.trail-popup .maplibregl-popup-tip {
+  border-top-color: var(--bg-panel);
 }
 
 .map-drawer {
@@ -1099,34 +1120,6 @@ input {
   margin-left: auto;
 }
 
-.leaflet-control-attribution {
-  font-size: 10px;
-}
-
-.leaflet-control-zoom a {
-  width: 34px !important;
-  height: 34px !important;
-  line-height: 34px !important;
-}
-
-.map-basemap-ctrl .map-basemap-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 34px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  line-height: 1;
-  color: #333;
-  text-decoration: none;
-}
-
-.map-basemap-ctrl .map-basemap-btn[aria-pressed='true'] {
-  background: #e8e8e8;
-}
-
 .map-error {
   position: absolute;
   inset: 0;
@@ -1144,52 +1137,10 @@ input {
   color: var(--muted);
 }
 
-.trail-popup .leaflet-popup-content-wrapper {
-  padding: 0;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  color: var(--text);
-}
-
-.trail-popup .leaflet-popup-content {
-  margin: 0;
-  min-width: 0;
-}
-
-.trail-popup .leaflet-popup-tip {
-  background: var(--bg-panel);
-}
-
-.trail-popup .leaflet-popup-close-button {
-  color: var(--muted) !important;
-  font-size: 18px !important;
-  padding: 4px 8px !important;
-  width: auto !important;
-  height: auto !important;
-}
-
-.trail-popup .leaflet-popup-close-button:hover {
-  background: transparent;
-  color: var(--text) !important;
-}
-
-.trail-marker-divicon,
-.gps-dot-divicon {
-  background: transparent;
-  border: none;
-}
-
 .trail-marker-icon {
   display: block;
   line-height: 0;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
-}
-
-.gps-dot-divicon .gps-dot {
-  width: 16px;
-  height: 16px;
 }
 
 .trail-popup-body {

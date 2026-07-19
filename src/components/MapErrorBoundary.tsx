@@ -26,7 +26,7 @@ export class MapErrorBoundary extends Component<Props, State> {
       return (
         this.props.fallback ?? (
           <div className="map-error" role="alert">
-            <p>Map failed to load.</p>
+            <p>Trail view failed to load.</p>
             <button type="button" className="btn btn-primary" onClick={() => this.setState({ error: null })}>
               Try again
             </button>

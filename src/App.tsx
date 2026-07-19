@@ -1,15 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Map as LeafletMap } from 'leaflet'
+import { useCallback, useEffect, useState } from 'react'
+import type { Map as MapLibreMap } from 'maplibre-gl'
 import { LandingPage } from './components/LandingPage'
 import { MapErrorBoundary } from './components/MapErrorBoundary'
 import { MapMenu } from './components/MapMenu'
 import { MapView } from './components/MapView'
 import { MarkerDetailSheet } from './components/MarkerDetailSheet'
-import { ensurePbrSeedTracks, pbrNetworkBounds } from './data/pbr/seed'
+import { ensurePbrSeedTracks } from './data/pbr/seed'
 import { nextTrailColor, parseGpx } from './lib/gpx'
 import { watchGps } from './lib/geolocation'
 import { flyToGps } from './lib/mapCamera'
-import { toLatLngBounds } from './lib/mapRegion'
 import { nearestPointOnTrails } from './lib/trailGeometry'
 import {
   deleteMarker,
@@ -37,7 +36,7 @@ export default function App() {
   const [gps, setGps] = useState<GpsPosition | null>(null)
   const [gpsError, setGpsError] = useState<string | null>(null)
   const [followGps, setFollowGps] = useState(false)
-  const [map, setMap] = useState<LeafletMap | null>(null)
+  const [map, setMap] = useState<MapLibreMap | null>(null)
   const [focusTrackId, setFocusTrackId] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -84,28 +83,13 @@ export default function App() {
     setFollowGps((prev) => (prev === follow ? prev : follow))
   }, [])
 
-  const handleMapReady = useCallback((m: LeafletMap | null) => {
+  const handleMapReady = useCallback((m: MapLibreMap | null) => {
     setMap(m)
   }, [])
 
-  const didInitialCamera = useRef(false)
-  useEffect(() => {
-    if (didInitialCamera.current || !map || loading) return
-
-    const bounds = pbrNetworkBounds(tracks)
-    if (!bounds) return
-
-    didInitialCamera.current = true
-    map.fitBounds(toLatLngBounds(bounds), {
-      padding: [56, 56],
-      maxZoom: 14,
-      animate: false,
-    })
-  }, [map, tracks, loading])
-
   useEffect(() => {
     if (view !== 'map' || !map) return
-    const id = requestAnimationFrame(() => map.invalidateSize())
+    const id = requestAnimationFrame(() => map.resize())
     return () => cancelAnimationFrame(id)
   }, [view, map, menuOpen])
 
@@ -115,9 +99,7 @@ export default function App() {
       setPlacementMode('idle')
       setPendingLocation(null)
       setDetailMarkerId(null)
-      // Drop the map while on home — frees tiles/GPU while browsing landing.
       setMap(null)
-      didInitialCamera.current = false
     }
   }, [view])
 
