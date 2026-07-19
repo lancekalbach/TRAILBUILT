@@ -98,9 +98,11 @@ input {
 .map-page .map-root {
   position: absolute;
   inset: 0;
-  /* Isolate map compositing from UI overlays (helps mobile pan jank). */
-  contain: layout paint;
-  transform: translateZ(0);
+  /*
+   * Do NOT put transform / contain:paint on this node.
+   * Leaflet pinch-zoom CSS-scales .leaflet-map-pane every frame; a transformed
+   * or paint-contained ancestor forces an extra full-map composite and feels laggy.
+   */
 }
 
 .map-drawer {

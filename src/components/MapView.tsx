@@ -30,13 +30,14 @@ function isMobileMapDevice(): boolean {
 type BasemapId = 'streets' | 'satellite'
 
 const DESKTOP_SAT_ZOOM = 13.5
-/** ~7 m near Priest Ridge — display-only; snap still uses full GPX. */
-const MOBILE_SIMPLIFY_TOLERANCE = 0.00006
+/** ~15 m near Priest Ridge — display-only; snap still uses full GPX. */
+const MOBILE_SIMPLIFY_TOLERANCE = 0.00012
 /** ~3.5 m — still cuts redraw cost on desktop retina canvases. */
 const DESKTOP_SIMPLIFY_TOLERANCE = 0.00003
 const TRAIL_TAP_METERS = 36
 
 const TILE_PERF = {
+  // Critical for pinch: don't swap tile images mid-gesture (CSS-scale only).
   updateWhenZooming: false,
   updateWhenIdle: true,
   keepBuffer: 1,
@@ -225,13 +226,15 @@ export function MapView({
       maxBounds: toLatLngBounds(PBR_MAX_BOUNDS),
       maxBoundsViscosity: 1,
       preferCanvas: true,
-      // Larger padding = fewer full canvas redraws while panning.
-      renderer: L.canvas({ padding: mobile ? 0.5 : 0.2 }),
+      // Keep padding small: 0.5 made the canvas ~4× viewport area and laggy under pinch scale.
+      renderer: L.canvas({ padding: 0.1 }),
       zoomControl: false,
       attributionControl: true,
       fadeAnimation: false,
       markerZoomAnimation: false,
       bounceAtZoomLimits: false,
+      // Mobile: skip post-pinch zoom animation (scale again → full vector redraw). Snap once.
+      zoomAnimation: !mobile,
       dragging: interactive,
       touchZoom: interactive,
       scrollWheelZoom: interactive,
@@ -282,13 +285,13 @@ export function MapView({
         const props = feature?.properties as { color?: string; opacity?: number } | undefined
         return {
           color: props?.color || '#c4c4c4',
-          weight: mobile ? 3.25 : 3.5,
+          weight: mobile ? 3 : 3.5,
           opacity: props?.opacity ?? 0.95,
-          lineCap: 'round',
-          lineJoin: 'round',
+          lineCap: 'butt',
+          lineJoin: 'miter',
           interactive: false,
-          // Leaflet re-simplifies per zoom; higher = fewer segments drawn while moving.
-          smoothFactor: mobile ? 2.75 : 1.75,
+          // Leaflet re-simplifies per zoom; higher = fewer segments on zoomend redraw.
+          smoothFactor: mobile ? 3.5 : 1.75,
         }
       },
     }).addTo(map)
@@ -372,12 +375,30 @@ export function MapView({
         .openOn(map)
     })
 
-    const breakFollow = () => {
-      if (!followGpsRef.current) return
-      onFollowChangeRef.current?.(false)
+    const overlayPane = map.getPane('overlayPane')
+    const markerPane = map.getPane('markerPane')
+    const shadowPane = map.getPane('shadowPane')
+
+    const setVectorPanesHidden = (hidden: boolean) => {
+      const v = hidden ? 'hidden' : ''
+      if (overlayPane) overlayPane.style.visibility = v
+      if (markerPane) markerPane.style.visibility = v
+      if (shadowPane) shadowPane.style.visibility = v
     }
-    map.on('dragstart', breakFollow)
-    map.on('zoomstart', breakFollow)
+
+    // Pinch/button zoom CSS-scales panes every frame — hide vectors so only tiles composite.
+    map.on('zoomstart', () => {
+      setVectorPanesHidden(true)
+      map.closePopup()
+    })
+    map.on('zoomend', () => {
+      setVectorPanesHidden(false)
+      // Defer follow-break to after the gesture so we don't React-re-render mid-zoom.
+      if (followGpsRef.current) onFollowChangeRef.current?.(false)
+    })
+    map.on('dragstart', () => {
+      if (followGpsRef.current) onFollowChangeRef.current?.(false)
+    })
 
     mapRef.current = map
     onMapReadyRef.current?.(map)
