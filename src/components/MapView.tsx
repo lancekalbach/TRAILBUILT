@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
-import maplibregl from 'maplibre-gl'
-import type { GeoJSONSource, Map as MapLibreMap, MapMouseEvent, Marker, Popup } from 'maplibre-gl'
-import 'maplibre-gl/dist/maplibre-gl.css'
+import L from 'leaflet'
+import type { Map as LeafletMap } from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import type { GpsPosition, MarkerPlacementMode, TrailMarker, TrailTrack } from '../types'
 import { trackBounds, tracksToGeoJson } from '../lib/gpx'
 import { markersToGeoJson, markerKindIconSvg, markerKindMeta } from '../lib/markers'
@@ -12,6 +12,7 @@ import {
   PBR_MAX_BOUNDS,
   PBR_MAX_ZOOM,
   PBR_MIN_ZOOM,
+  toLatLngBounds,
 } from '../lib/mapRegion'
 import { nearestPointOnTrails } from '../lib/trailGeometry'
 
@@ -28,138 +29,7 @@ function isMobileMapDevice(): boolean {
 
 type BasemapId = 'streets' | 'satellite'
 
-const OSM_LAYER = 'osm'
-const SATELLITE_LAYER = 'satellite'
 const DESKTOP_SAT_ZOOM = 13.5
-
-/**
- * Exclusive basemap style — never composite OSM + satellite.
- * Source minzoom matches the regional camera so we never request world tiles.
- */
-function buildMapStyle(): maplibregl.StyleSpecification {
-  return {
-    version: 8,
-    sources: {
-      osm: {
-        type: 'raster',
-        tiles: [
-          'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        ],
-        tileSize: 256,
-        // Below regional min zoom we never show the map — skip z0–z9 world tiles.
-        minzoom: Math.max(0, PBR_MIN_ZOOM - 1),
-        maxzoom: 19,
-        attribution: '© OpenStreetMap contributors',
-      },
-      satellite: {
-        type: 'raster',
-        tiles: [
-          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        ],
-        tileSize: 256,
-        minzoom: Math.max(0, PBR_MIN_ZOOM - 1),
-        maxzoom: 19,
-        attribution:
-          'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
-      },
-    },
-    layers: [
-      {
-        id: OSM_LAYER,
-        type: 'raster',
-        source: 'osm',
-        layout: { visibility: 'visible' },
-      },
-      {
-        id: SATELLITE_LAYER,
-        type: 'raster',
-        source: 'satellite',
-        layout: { visibility: 'none' },
-      },
-    ],
-  }
-}
-
-function setBasemap(map: MapLibreMap, mode: BasemapId) {
-  if (map.getLayer(OSM_LAYER)) {
-    map.setLayoutProperty(OSM_LAYER, 'visibility', mode === 'streets' ? 'visible' : 'none')
-  }
-  if (map.getLayer(SATELLITE_LAYER)) {
-    map.setLayoutProperty(SATELLITE_LAYER, 'visibility', mode === 'satellite' ? 'visible' : 'none')
-  }
-}
-
-function queryHitFeatures(
-  map: MapLibreMap,
-  point: maplibregl.PointLike,
-  layerIds: string[],
-  pad: number,
-) {
-  const existing = layerIds.filter((id) => map.getLayer(id))
-  if (existing.length === 0) return []
-
-  if (pad <= 0) {
-    return map.queryRenderedFeatures(point, { layers: existing })
-  }
-
-  const p = point as { x: number; y: number }
-  return map.queryRenderedFeatures(
-    [
-      [p.x - pad, p.y - pad],
-      [p.x + pad, p.y + pad],
-    ],
-    { layers: existing },
-  )
-}
-
-/** Compact MapLibre control to toggle satellite without dual-basemap cost. */
-class BasemapToggleControl implements maplibregl.IControl {
-  private _container!: HTMLDivElement
-  private _button!: HTMLButtonElement
-  private _getMode: () => BasemapId
-  private _onToggle: () => void
-
-  constructor(getMode: () => BasemapId, onToggle: () => void) {
-    this._getMode = getMode
-    this._onToggle = onToggle
-  }
-
-  onAdd(_map: MapLibreMap) {
-    this._container = document.createElement('div')
-    this._container.className = 'maplibregl-ctrl maplibregl-ctrl-group map-basemap-ctrl'
-    this._button = document.createElement('button')
-    this._button.type = 'button'
-    this._button.className = 'map-basemap-btn'
-    this._button.addEventListener('click', this._onToggle)
-    this._container.appendChild(this._button)
-    this.sync()
-    return this._container
-  }
-
-  onRemove() {
-    this._button.removeEventListener('click', this._onToggle)
-    this._container.remove()
-  }
-
-  sync() {
-    const sat = this._getMode() === 'satellite'
-    this._button.textContent = sat ? 'Map' : 'Sat'
-    this._button.setAttribute('aria-label', sat ? 'Show street map' : 'Show satellite')
-    this._button.title = sat ? 'Street map' : 'Satellite'
-    this._button.setAttribute('aria-pressed', sat ? 'true' : 'false')
-  }
-}
-
-const TRACKS_SOURCE = 'trail-tracks'
-const TRACKS_CASING = 'trail-tracks-casing'
-const TRACKS_LINE = 'trail-tracks-line'
-const TRACKS_HIT = 'trail-tracks-hit'
-
-const MARKERS_SOURCE = 'trail-markers'
-const MARKERS_LAYER = 'trail-markers-symbol'
-const MARKERS_HIT = 'trail-markers-hit'
 
 function escapeHtml(value: string) {
   return value
@@ -169,179 +39,92 @@ function escapeHtml(value: string) {
     .replace(/"/g, '&quot;')
 }
 
+function createStreetsLayer() {
+  return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    subdomains: 'abc',
+    maxZoom: PBR_MAX_ZOOM,
+    minZoom: PBR_MIN_ZOOM,
+  })
+}
+
+function createSatelliteLayer() {
+  return L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {
+      attribution:
+        'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+      maxZoom: PBR_MAX_ZOOM,
+      minZoom: PBR_MIN_ZOOM,
+    },
+  )
+}
+
+/** Compact Sat/Map toggle matching prior UX. */
+class BasemapToggleControl extends L.Control {
+  private _button: HTMLButtonElement | null = null
+  private _getMode: () => BasemapId
+  private _onToggle: () => void
+
+  constructor(getMode: () => BasemapId, onToggle: () => void, options?: L.ControlOptions) {
+    super({ position: 'topright', ...options })
+    this._getMode = getMode
+    this._onToggle = onToggle
+  }
+
+  onAdd() {
+    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control map-basemap-ctrl')
+    const button = L.DomUtil.create('a', 'map-basemap-btn', container) as HTMLAnchorElement
+    button.href = '#'
+    button.role = 'button'
+    this._button = button as unknown as HTMLButtonElement
+
+    L.DomEvent.disableClickPropagation(container)
+    L.DomEvent.on(button, 'click', (e) => {
+      L.DomEvent.preventDefault(e)
+      this._onToggle()
+    })
+
+    this.sync()
+    return container
+  }
+
+  onRemove() {
+    this._button = null
+  }
+
+  sync() {
+    if (!this._button) return
+    const sat = this._getMode() === 'satellite'
+    this._button.textContent = sat ? 'Map' : 'Sat'
+    this._button.setAttribute('aria-label', sat ? 'Show street map' : 'Show satellite')
+    this._button.title = sat ? 'Street map' : 'Satellite'
+    this._button.setAttribute('aria-pressed', sat ? 'true' : 'false')
+  }
+}
+
+function warningIconHtml() {
+  return `<span class="trail-marker-icon" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="28" height="28">
+      <path d="M12 2 L22 20 H2 Z" fill="#f59e0b" stroke="#1a1a1a" stroke-width="1.5" stroke-linejoin="round"/>
+      <text x="12" y="17" text-anchor="middle" font-size="11" font-weight="700" fill="#1a1a1a" font-family="system-ui,sans-serif">!</text>
+    </svg>
+  </span>`
+}
+
 type MapViewProps = {
   tracks?: TrailTrack[]
   markers?: TrailMarker[]
   gps: GpsPosition | null
   followGps: boolean
   onFollowChange?: (follow: boolean) => void
-  onMapReady?: (map: MapLibreMap | null) => void
+  onMapReady?: (map: LeafletMap | null) => void
   interactive?: boolean
   className?: string
   focusTrackId?: string | null
   placementMode?: MarkerPlacementMode
   onPlaceLocation?: (lng: number, lat: number) => void
   onOpenMarkerDetail?: (id: string) => void
-}
-
-const MARKER_ICON_SIZE: maplibregl.ExpressionSpecification = [
-  'interpolate',
-  ['linear'],
-  ['zoom'],
-  12,
-  0.525,
-  14,
-  0.6375,
-  16,
-  0.7875,
-  18,
-  0.9375,
-  19,
-  1.05,
-]
-
-const MARKER_HIT_RADIUS: maplibregl.ExpressionSpecification = [
-  'interpolate',
-  ['linear'],
-  ['zoom'],
-  12,
-  12,
-  16,
-  16.5,
-  18,
-  19.5,
-  19,
-  22.5,
-]
-
-function ensureMarkerLayers(map: MapLibreMap, mobile: boolean) {
-  if (!map.getSource(MARKERS_SOURCE)) {
-    map.addSource(MARKERS_SOURCE, {
-      type: 'geojson',
-      data: { type: 'FeatureCollection', features: [] },
-      buffer: mobile ? 0 : 32,
-    })
-  }
-
-  if (!map.hasImage('trail-warning-icon')) {
-    const size = 128
-    const canvas = document.createElement('canvas')
-    canvas.width = size
-    canvas.height = size
-    const ctx = canvas.getContext('2d')
-    if (ctx) {
-      const cx = size / 2
-      const top = 10
-      const bottom = size - 14
-      const left = 14
-      const right = size - 14
-
-      ctx.beginPath()
-      ctx.moveTo(cx, top)
-      ctx.lineTo(right, bottom)
-      ctx.lineTo(left, bottom)
-      ctx.closePath()
-      ctx.fillStyle = '#f59e0b'
-      ctx.fill()
-      ctx.strokeStyle = '#1a1a1a'
-      ctx.lineWidth = 6
-      ctx.stroke()
-
-      ctx.fillStyle = '#1a1a1a'
-      ctx.font = 'bold 64px system-ui, sans-serif'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText('!', cx, bottom - 36)
-    }
-    const imageData = ctx?.getImageData(0, 0, size, size)
-    if (imageData) {
-      // pixelRatio 2 → 64 CSS px at icon-size 1; high-zoom sizes scale well above that
-      map.addImage('trail-warning-icon', imageData, { pixelRatio: 2 })
-    }
-  }
-
-  if (!map.getLayer(MARKERS_LAYER)) {
-    map.addLayer({
-      id: MARKERS_LAYER,
-      type: 'symbol',
-      source: MARKERS_SOURCE,
-      layout: {
-        'icon-image': 'trail-warning-icon',
-        'icon-size': MARKER_ICON_SIZE,
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': true,
-        'icon-anchor': 'bottom',
-      },
-    })
-  } else {
-    map.setLayoutProperty(MARKERS_LAYER, 'icon-size', MARKER_ICON_SIZE)
-  }
-
-  // Invisible hit circles are expensive fill; on mobile we pad queryRenderedFeatures instead.
-  if (!mobile && !map.getLayer(MARKERS_HIT)) {
-    map.addLayer({
-      id: MARKERS_HIT,
-      type: 'circle',
-      source: MARKERS_SOURCE,
-      paint: {
-        'circle-radius': MARKER_HIT_RADIUS,
-        'circle-opacity': 0.01,
-      },
-    })
-  } else if (!mobile && map.getLayer(MARKERS_HIT)) {
-    map.setPaintProperty(MARKERS_HIT, 'circle-radius', MARKER_HIT_RADIUS)
-  }
-}
-
-function ensureTrackLayers(map: MapLibreMap, mobile: boolean) {
-  if (!map.getSource(TRACKS_SOURCE)) {
-    map.addSource(TRACKS_SOURCE, {
-      type: 'geojson',
-      data: { type: 'FeatureCollection', features: [] },
-      // Higher tolerance = cheaper geometry at low zoom (mobile GPUs benefit most).
-      tolerance: mobile ? 2 : 0.5,
-      buffer: mobile ? 0 : 64,
-    })
-  }
-  if (!map.getLayer(TRACKS_CASING) && !mobile) {
-    map.addLayer({
-      id: TRACKS_CASING,
-      type: 'line',
-      source: TRACKS_SOURCE,
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: {
-        'line-color': '#f5f5f0',
-        'line-width': 6.5,
-        'line-opacity': 0.75,
-      },
-    })
-  }
-  if (!map.getLayer(TRACKS_LINE)) {
-    map.addLayer({
-      id: TRACKS_LINE,
-      type: 'line',
-      source: TRACKS_SOURCE,
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: {
-        'line-color': ['get', 'color'],
-        'line-width': mobile ? 4 : 3.5,
-        'line-opacity': ['get', 'opacity'],
-      },
-    })
-  }
-  if (!mobile && !map.getLayer(TRACKS_HIT)) {
-    map.addLayer({
-      id: TRACKS_HIT,
-      type: 'line',
-      source: TRACKS_SOURCE,
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: {
-        'line-color': '#000000',
-        'line-width': 18,
-        'line-opacity': 0.01,
-      },
-    })
-  }
 }
 
 export function MapView({
@@ -359,22 +142,20 @@ export function MapView({
   onOpenMarkerDetail,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<MapLibreMap | null>(null)
-  const gpsMarkerRef = useRef<Marker | null>(null)
-  const accuracyElRef = useRef<HTMLDivElement | null>(null)
-  const accuracyMarkerRef = useRef<Marker | null>(null)
-  const accuracyZoomBoundRef = useRef(false)
-  const gpsAccuracyRef = useRef<number | null>(null)
-  const gpsLatRef = useRef(0)
-  const trailPopupRef = useRef<Popup | null>(null)
-  const markerPopupRef = useRef<Popup | null>(null)
+  const mapRef = useRef<LeafletMap | null>(null)
+  const streetsLayerRef = useRef<L.TileLayer | null>(null)
+  const satelliteLayerRef = useRef<L.TileLayer | null>(null)
+  const tracksLayerRef = useRef<L.GeoJSON | null>(null)
+  const markersLayerRef = useRef<L.GeoJSON | null>(null)
+  const gpsMarkerRef = useRef<L.Marker | null>(null)
+  const accuracyCircleRef = useRef<L.Circle | null>(null)
+  const basemapRef = useRef<BasemapId>('streets')
+  const basemapControlRef = useRef<BasemapToggleControl | null>(null)
+  const mobileRef = useRef(false)
   const tracksRef = useRef(tracks)
   const markersRef = useRef(markers)
   const followGpsRef = useRef(followGps)
   const placementModeRef = useRef(placementMode)
-  const mobileRef = useRef(false)
-  const basemapRef = useRef<BasemapId>('streets')
-  const basemapControlRef = useRef<BasemapToggleControl | null>(null)
   const onMapReadyRef = useRef(onMapReady)
   const onFollowChangeRef = useRef(onFollowChange)
   const onPlaceLocationRef = useRef(onPlaceLocation)
@@ -396,216 +177,176 @@ export function MapView({
     mobileRef.current = mobile
     basemapRef.current = 'streets'
 
-    let map: MapLibreMap
-    try {
-      map = new maplibregl.Map({
-        container: containerRef.current,
-        style: buildMapStyle(),
-        center: PBR_CENTER,
-        zoom: PBR_DEFAULT_ZOOM,
-        minZoom: PBR_MIN_ZOOM,
-        maxZoom: PBR_MAX_ZOOM,
-        maxBounds: PBR_MAX_BOUNDS,
-        interactive,
-        attributionControl: false,
-        // 1× canvas on phones — retina fill-rate is a top pan/zoom cost.
-        pixelRatio: mobile ? 1 : undefined,
-        fadeDuration: 0,
-        maxTileCacheSize: mobile ? 24 : 80,
-        maxTileCacheZoomLevels: mobile ? 2 : 5,
-        cancelPendingTileRequestsWhileZooming: true,
-        refreshExpiredTiles: false,
-        renderWorldCopies: false,
-        dragRotate: !mobile,
-        pitchWithRotate: false,
-        touchPitch: !mobile,
-        trackResize: true,
-      })
-    } catch (err) {
-      console.error('Failed to create map', err)
-      return
-    }
+    const streets = createStreetsLayer()
+    const satellite = createSatelliteLayer()
+    streetsLayerRef.current = streets
+    satelliteLayerRef.current = satellite
 
-    map.addControl(new maplibregl.AttributionControl({ compact: true }))
+    const map = L.map(containerRef.current, {
+      center: [PBR_CENTER[1], PBR_CENTER[0]],
+      zoom: PBR_DEFAULT_ZOOM,
+      minZoom: PBR_MIN_ZOOM,
+      maxZoom: PBR_MAX_ZOOM,
+      maxBounds: toLatLngBounds(PBR_MAX_BOUNDS),
+      maxBoundsViscosity: 1,
+      preferCanvas: true,
+      zoomControl: false,
+      attributionControl: true,
+      dragging: interactive,
+      touchZoom: interactive,
+      scrollWheelZoom: interactive,
+      doubleClickZoom: interactive,
+      boxZoom: interactive,
+      keyboard: interactive,
+    })
+
+    streets.addTo(map)
 
     if (interactive) {
-      map.addControl(new maplibregl.NavigationControl({ visualizePitch: false }), 'top-right')
+      L.control.zoom({ position: 'topright' }).addTo(map)
     }
 
     const applyBasemap = (mode: BasemapId) => {
       basemapRef.current = mode
-      setBasemap(map, mode)
+      if (mode === 'satellite') {
+        if (map.hasLayer(streets)) map.removeLayer(streets)
+        if (!map.hasLayer(satellite)) satellite.addTo(map)
+      } else {
+        if (map.hasLayer(satellite)) map.removeLayer(satellite)
+        if (!map.hasLayer(streets)) streets.addTo(map)
+      }
       basemapControlRef.current?.sync()
     }
 
     if (mobile) {
-      const basemapControl = new BasemapToggleControl(
+      const control = new BasemapToggleControl(
         () => basemapRef.current,
         () => applyBasemap(basemapRef.current === 'satellite' ? 'streets' : 'satellite'),
       )
-      basemapControlRef.current = basemapControl
-      map.addControl(basemapControl, 'top-right')
+      basemapControlRef.current = control
+      control.addTo(map)
     } else {
-      // Desktop: hard-swap by zoom — never composite both tile stacks.
       const syncDesktopBasemap = () => {
         applyBasemap(map.getZoom() >= DESKTOP_SAT_ZOOM ? 'satellite' : 'streets')
       }
-      map.on('load', syncDesktopBasemap)
       map.on('zoomend', syncDesktopBasemap)
+      syncDesktopBasemap()
     }
 
-    const hitPad = mobile ? 18 : 0
+    const tracksLayer = L.geoJSON(undefined, {
+      style: (feature) => {
+        const props = feature?.properties as { color?: string; opacity?: number } | undefined
+        return {
+          color: props?.color || '#c4c4c4',
+          weight: mobile ? 4 : 3.5,
+          opacity: props?.opacity ?? 0.95,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }
+      },
+      onEachFeature: (feature, layer) => {
+        const props = feature.properties as {
+          id?: string
+          name?: string
+          skillLevel?: string
+        }
+        if (!props?.name) return
 
-    const showMarkerPopup = (e: MapMouseEvent) => {
-      const layers = mobile ? [MARKERS_LAYER] : [MARKERS_HIT, MARKERS_LAYER]
-      const features = queryHitFeatures(map, e.point, layers, hitPad)
-      const props = features[0]?.properties as
-        | { id?: string; kind?: string; label?: string; note?: string }
-        | undefined
-      if (!props?.id) return false
-
-      const marker = markersRef.current.find((m) => m.id === props.id)
-      const markerId = props.id
-      const kind = marker?.kind || props.kind || 'hazard'
-      const label = props.label || markerKindMeta(kind).label
-      const note = (marker?.note || props.note || '').trim()
-      const noteHtml = note ? `<p class="trail-popup-note">${escapeHtml(note)}</p>` : ''
-      const iconHtml = markerKindIconSvg(kind, 18)
-
-      if (!markerPopupRef.current) {
-        markerPopupRef.current = new maplibregl.Popup({
-          closeButton: true,
-          closeOnClick: true,
-          offset: 18,
-          className: 'trail-popup marker-popup',
-          maxWidth: '260px',
+        const skill = (props.skillLevel || '').trim()
+        const skillHtml = skill ? `<p class="trail-popup-skill">${escapeHtml(skill)}</p>` : ''
+        layer.bindPopup(
+          `<div class="trail-popup-body"><p class="trail-popup-name">${escapeHtml(props.name)}</p>${skillHtml}</div>`,
+          { className: 'trail-popup', maxWidth: 240, closeButton: true },
+        )
+        layer.on('popupopen', () => {
+          if (placementModeRef.current === 'selecting') map.closePopup()
         })
-      }
+      },
+    }).addTo(map)
+    tracksLayerRef.current = tracksLayer
 
-      trailPopupRef.current?.remove()
+    const markersLayer = L.geoJSON(undefined, {
+      pointToLayer: (_feature, latlng) =>
+        L.marker(latlng, {
+          icon: L.divIcon({
+            className: 'trail-marker-divicon',
+            html: warningIconHtml(),
+            iconSize: [28, 28],
+            iconAnchor: [14, 28],
+            popupAnchor: [0, -24],
+          }),
+        }),
+      onEachFeature: (feature, layer) => {
+        const props = feature.properties as {
+          id?: string
+          kind?: string
+          label?: string
+          note?: string
+        }
+        if (!props?.id) return
 
-      markerPopupRef.current
-        .setLngLat(e.lngLat)
-        .setHTML(
+        const kind = props.kind || 'hazard'
+        const label = props.label || markerKindMeta(kind).label
+        const note = (props.note || '').trim()
+        const noteHtml = note ? `<p class="trail-popup-note">${escapeHtml(note)}</p>` : ''
+        const iconHtml = markerKindIconSvg(kind, 18)
+        const markerId = props.id
+
+        layer.bindPopup(
           `<div class="trail-popup-body">
             <p class="trail-popup-name"><span class="marker-popup-icon">${iconHtml}</span> ${escapeHtml(label)}</p>
             ${noteHtml}
             <button type="button" class="trail-popup-more" data-marker-id="${escapeHtml(markerId)}">More</button>
           </div>`,
+          { className: 'trail-popup marker-popup', maxWidth: 260, closeButton: true },
         )
-        .addTo(map)
 
-      const moreBtn = markerPopupRef.current
-        .getElement()
-        ?.querySelector<HTMLButtonElement>('.trail-popup-more')
-      if (moreBtn) {
-        moreBtn.onclick = (ev) => {
-          ev.preventDefault()
-          ev.stopPropagation()
-          markerPopupRef.current?.remove()
-          onOpenMarkerDetailRef.current?.(markerId)
-        }
-      }
-
-      return true
-    }
-
-    const showTrailPopup = (e: MapMouseEvent) => {
-      if (placementModeRef.current === 'selecting') return
-
-      if (showMarkerPopup(e)) return
-
-      const layers = mobile ? [TRACKS_LINE] : [TRACKS_HIT, TRACKS_LINE]
-      const features = queryHitFeatures(map, e.point, layers, hitPad)
-      const props = features[0]?.properties as
-        | { id?: string; name?: string; skillLevel?: string }
-        | undefined
-      if (!props) {
-        trailPopupRef.current?.remove()
-        return
-      }
-
-      const track = props.id ? tracksRef.current.find((t) => t.id === props.id) : undefined
-      const name = track?.name || props.name
-      if (!name) return
-
-      const skill = (track?.skillLevel || props.skillLevel || '').trim()
-      const skillHtml = skill ? `<p class="trail-popup-skill">${escapeHtml(skill)}</p>` : ''
-
-      if (!trailPopupRef.current) {
-        trailPopupRef.current = new maplibregl.Popup({
-          closeButton: true,
-          closeOnClick: true,
-          offset: 14,
-          className: 'trail-popup',
-          maxWidth: '240px',
+        layer.on('popupopen', () => {
+          if (placementModeRef.current === 'selecting') {
+            map.closePopup()
+            return
+          }
+          const el = (layer as L.Marker).getPopup()?.getElement()
+          const moreBtn = el?.querySelector<HTMLButtonElement>('.trail-popup-more')
+          if (!moreBtn) return
+          moreBtn.onclick = (ev) => {
+            ev.preventDefault()
+            ev.stopPropagation()
+            map.closePopup()
+            onOpenMarkerDetailRef.current?.(markerId)
+          }
         })
-      }
+      },
+    }).addTo(map)
+    markersLayerRef.current = markersLayer
 
-      trailPopupRef.current
-        .setLngLat(e.lngLat)
-        .setHTML(
-          `<div class="trail-popup-body"><p class="trail-popup-name">${escapeHtml(name)}</p>${skillHtml}</div>`,
-        )
-        .addTo(map)
-    }
-
-    const handleMapClick = (e: MapMouseEvent) => {
+    map.on('click', (e: L.LeafletMouseEvent) => {
       if (placementModeRef.current === 'selecting') {
-        const snapped = nearestPointOnTrails(e.lngLat.lng, e.lngLat.lat, tracksRef.current)
-        const lng = snapped?.lng ?? e.lngLat.lng
-        const lat = snapped?.lat ?? e.lngLat.lat
-        onPlaceLocationRef.current?.(lng, lat)
-        return
+        const snapped = nearestPointOnTrails(e.latlng.lng, e.latlng.lat, tracksRef.current)
+        onPlaceLocationRef.current?.(snapped?.lng ?? e.latlng.lng, snapped?.lat ?? e.latlng.lat)
       }
-
-      showTrailPopup(e)
-    }
-
-    map.on('click', handleMapClick)
-
-    // Hover cursor queries are desktop-only; touch devices don't need per-move hit tests.
-    const finePointer = window.matchMedia('(pointer: fine)').matches
-    if (finePointer) {
-      map.on('mousemove', (e) => {
-        if (placementModeRef.current === 'selecting') {
-          map.getCanvas().style.cursor = 'crosshair'
-          return
-        }
-
-        const onMarker =
-          queryHitFeatures(map, e.point, [MARKERS_HIT, MARKERS_LAYER], 0).length > 0
-        if (onMarker) {
-          map.getCanvas().style.cursor = 'pointer'
-          return
-        }
-
-        const hovering =
-          queryHitFeatures(map, e.point, [TRACKS_HIT, TRACKS_LINE], 0).length > 0
-        map.getCanvas().style.cursor = hovering ? 'pointer' : ''
-      })
-    }
+    })
 
     const breakFollow = () => {
       if (!followGpsRef.current) return
       onFollowChangeRef.current?.(false)
     }
     map.on('dragstart', breakFollow)
-    map.on('wheel', breakFollow)
-    map.on('rotatestart', breakFollow)
-    map.on('pitchstart', breakFollow)
+    map.on('zoomstart', breakFollow)
 
     mapRef.current = map
     onMapReadyRef.current?.(map)
 
+    // Leaflet needs a size pass after the container becomes visible.
+    requestAnimationFrame(() => map.invalidateSize())
+
     return () => {
-      gpsMarkerRef.current?.remove()
-      accuracyMarkerRef.current?.remove()
-      trailPopupRef.current?.remove()
-      trailPopupRef.current = null
-      markerPopupRef.current?.remove()
-      markerPopupRef.current = null
-      accuracyZoomBoundRef.current = false
+      gpsMarkerRef.current = null
+      accuracyCircleRef.current = null
+      tracksLayerRef.current = null
+      markersLayerRef.current = null
+      streetsLayerRef.current = null
+      satelliteLayerRef.current = null
       basemapControlRef.current = null
       onMapReadyRef.current?.(null)
       map.remove()
@@ -614,43 +355,23 @@ export function MapView({
   }, [interactive])
 
   useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-
-    const apply = () => {
-      ensureTrackLayers(map, mobileRef.current)
-      const source = map.getSource(TRACKS_SOURCE) as GeoJSONSource | undefined
-      source?.setData(tracksToGeoJson(tracks))
-    }
-
-    if (map.isStyleLoaded()) {
-      apply()
-    } else {
-      map.once('load', apply)
-    }
+    const layer = tracksLayerRef.current
+    if (!layer) return
+    layer.clearLayers()
+    layer.addData(tracksToGeoJson(tracks) as GeoJSON.GeoJsonObject)
   }, [tracks])
 
   useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-
-    const apply = () => {
-      ensureMarkerLayers(map, mobileRef.current)
-      const source = map.getSource(MARKERS_SOURCE) as GeoJSONSource | undefined
-      source?.setData(markersToGeoJson(markers))
-    }
-
-    if (map.isStyleLoaded()) {
-      apply()
-    } else {
-      map.once('load', apply)
-    }
+    const layer = markersLayerRef.current
+    if (!layer) return
+    layer.clearLayers()
+    layer.addData(markersToGeoJson(markers) as GeoJSON.GeoJsonObject)
   }, [markers])
 
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    map.getCanvas().style.cursor = placementMode === 'selecting' ? 'crosshair' : ''
+    map.getContainer().style.cursor = placementMode === 'selecting' ? 'crosshair' : ''
   }, [placementMode])
 
   useEffect(() => {
@@ -660,10 +381,11 @@ export function MapView({
     if (!track) return
     const bounds = trackBounds(track)
     if (!bounds) return
-    map.fitBounds(bounds, {
-      padding: 56,
-      duration: prefersReducedMotion() ? 0 : 800,
+    map.fitBounds(toLatLngBounds(bounds), {
+      padding: [56, 56],
       maxZoom: 16,
+      animate: !prefersReducedMotion(),
+      duration: 0.8,
     })
   }, [focusTrackId, tracks])
 
@@ -671,58 +393,41 @@ export function MapView({
     const map = mapRef.current
     if (!map || !gps) return
 
-    gpsLatRef.current = gps.lat
-    gpsAccuracyRef.current = gps.accuracy ?? null
+    const latlng: L.LatLngExpression = [gps.lat, gps.lng]
 
     if (!gpsMarkerRef.current) {
-      const el = document.createElement('div')
-      el.className = 'gps-dot'
-      gpsMarkerRef.current = new maplibregl.Marker({ element: el, anchor: 'center' })
-        .setLngLat([gps.lng, gps.lat])
-        .addTo(map)
+      gpsMarkerRef.current = L.marker(latlng, {
+        icon: L.divIcon({
+          className: 'gps-dot-divicon',
+          html: '<div class="gps-dot"></div>',
+          iconSize: [16, 16],
+          iconAnchor: [8, 8],
+        }),
+        interactive: false,
+        zIndexOffset: 1000,
+      }).addTo(map)
     } else {
-      gpsMarkerRef.current.setLngLat([gps.lng, gps.lat])
+      gpsMarkerRef.current.setLatLng(latlng)
     }
 
-    // Accuracy ring is a DOM marker resized on every zoom — skip on mobile.
     if (!mobileRef.current && gps.accuracy != null && gps.accuracy > 0) {
-      const updateAccuracySize = () => {
-        const el = accuracyElRef.current
-        const accuracy = gpsAccuracyRef.current
-        if (!el || accuracy == null || accuracy <= 0) return
-        const metersPerPx =
-          (40075016.686 * Math.abs(Math.cos((gpsLatRef.current * Math.PI) / 180))) /
-          Math.pow(2, map.getZoom() + 8)
-        const px = Math.max(12, (accuracy / metersPerPx) * 2)
-        el.style.width = `${px}px`
-        el.style.height = `${px}px`
-      }
-
-      if (!accuracyMarkerRef.current) {
-        const node = document.createElement('div')
-        node.className = 'gps-accuracy'
-        accuracyElRef.current = node
-        accuracyMarkerRef.current = new maplibregl.Marker({
-          element: node,
-          anchor: 'center',
-        })
-          .setLngLat([gps.lng, gps.lat])
-          .addTo(map)
+      if (!accuracyCircleRef.current) {
+        accuracyCircleRef.current = L.circle(latlng, {
+          radius: gps.accuracy,
+          color: '#2f80ed',
+          weight: 1,
+          fillColor: '#2f80ed',
+          fillOpacity: 0.15,
+          interactive: false,
+        }).addTo(map)
       } else {
-        accuracyMarkerRef.current.setLngLat([gps.lng, gps.lat])
-      }
-
-      updateAccuracySize()
-
-      if (!accuracyZoomBoundRef.current) {
-        map.on('zoom', updateAccuracySize)
-        accuracyZoomBoundRef.current = true
+        accuracyCircleRef.current.setLatLng(latlng)
+        accuracyCircleRef.current.setRadius(gps.accuracy)
       }
     }
 
     if (followGpsRef.current && isInsidePbrRegion(gps.lng, gps.lat)) {
-      // jumpTo avoids stacking easeTo animations on every GPS tick.
-      map.jumpTo({ center: [gps.lng, gps.lat] })
+      map.panTo(latlng, { animate: false })
     }
   }, [gps])
 

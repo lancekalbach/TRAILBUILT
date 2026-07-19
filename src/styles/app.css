@@ -1097,16 +1097,20 @@ input {
   margin-left: auto;
 }
 
-.maplibregl-ctrl-attrib {
+.leaflet-control-attribution {
   font-size: 10px;
 }
 
-.maplibregl-ctrl-group button {
-  width: 34px;
-  height: 34px;
+.leaflet-control-zoom a {
+  width: 34px !important;
+  height: 34px !important;
+  line-height: 34px !important;
 }
 
 .map-basemap-ctrl .map-basemap-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 44px;
   height: 34px;
   font-size: 11px;
@@ -1114,6 +1118,7 @@ input {
   letter-spacing: 0.02em;
   line-height: 1;
   color: #333;
+  text-decoration: none;
 }
 
 .map-basemap-ctrl .map-basemap-btn[aria-pressed='true'] {
@@ -1137,7 +1142,7 @@ input {
   color: var(--muted);
 }
 
-.trail-popup .maplibregl-popup-content {
+.trail-popup .leaflet-popup-content-wrapper {
   padding: 0;
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -1146,20 +1151,43 @@ input {
   color: var(--text);
 }
 
-.trail-popup .maplibregl-popup-tip {
-  border-top-color: var(--bg-panel);
-  border-bottom-color: var(--bg-panel);
+.trail-popup .leaflet-popup-content {
+  margin: 0;
+  min-width: 0;
 }
 
-.trail-popup .maplibregl-popup-close-button {
-  color: var(--muted);
-  font-size: 18px;
-  padding: 4px 8px;
+.trail-popup .leaflet-popup-tip {
+  background: var(--bg-panel);
 }
 
-.trail-popup .maplibregl-popup-close-button:hover {
+.trail-popup .leaflet-popup-close-button {
+  color: var(--muted) !important;
+  font-size: 18px !important;
+  padding: 4px 8px !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+.trail-popup .leaflet-popup-close-button:hover {
   background: transparent;
-  color: var(--text);
+  color: var(--text) !important;
+}
+
+.trail-marker-divicon,
+.gps-dot-divicon {
+  background: transparent;
+  border: none;
+}
+
+.trail-marker-icon {
+  display: block;
+  line-height: 0;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+
+.gps-dot-divicon .gps-dot {
+  width: 16px;
+  height: 16px;
 }
 
 .trail-popup-body {

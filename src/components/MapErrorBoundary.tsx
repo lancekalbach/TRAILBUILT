@@ -9,7 +9,7 @@ type State = {
   error: Error | null
 }
 
-/** Keeps the rest of the app alive if the map WebGL view fails. */
+/** Keeps the rest of the app alive if the map view fails. */
 export class MapErrorBoundary extends Component<Props, State> {
   state: State = { error: null }
 
