@@ -1,4 +1,5 @@
 import type { TrailLine, TrailTrack } from '../types'
+import { simplifyLine } from './simplify'
 
 const TRAIL_COLORS = ['#e85d04', '#219ebc', '#90be6d', '#9b5de5', '#f72585', '#ffb703']
 
@@ -128,7 +129,15 @@ export function trackBounds(track: TrailTrack): [[number, number], [number, numb
   ]
 }
 
-export function tracksToGeoJson(tracks: TrailTrack[]): {
+export type TracksToGeoJsonOptions = {
+  /** Douglas–Peucker tolerance in degrees; omit to keep full geometry. */
+  simplifyTolerance?: number
+}
+
+export function tracksToGeoJson(
+  tracks: TrailTrack[],
+  options: TracksToGeoJsonOptions = {},
+): {
   type: 'FeatureCollection'
   features: Array<{
     type: 'Feature'
@@ -146,9 +155,15 @@ export function tracksToGeoJson(tracks: TrailTrack[]): {
     }
   }>
 } {
+  const { simplifyTolerance } = options
   const features = []
   for (const track of tracks) {
     for (let i = 0; i < track.lines.length; i++) {
+      const raw = track.lines[i]!.coordinates
+      const coordinates =
+        simplifyTolerance && simplifyTolerance > 0
+          ? simplifyLine(raw, simplifyTolerance)
+          : raw
       features.push({
         type: 'Feature' as const,
         properties: {
@@ -161,7 +176,7 @@ export function tracksToGeoJson(tracks: TrailTrack[]): {
         },
         geometry: {
           type: 'LineString' as const,
-          coordinates: track.lines[i]!.coordinates,
+          coordinates,
         },
       })
     }

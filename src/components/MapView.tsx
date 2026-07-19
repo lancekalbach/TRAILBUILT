@@ -30,6 +30,18 @@ function isMobileMapDevice(): boolean {
 type BasemapId = 'streets' | 'satellite'
 
 const DESKTOP_SAT_ZOOM = 13.5
+/** ~7 m near Priest Ridge — display-only; snap still uses full GPX. */
+const MOBILE_SIMPLIFY_TOLERANCE = 0.00006
+/** ~3.5 m — still cuts redraw cost on desktop retina canvases. */
+const DESKTOP_SIMPLIFY_TOLERANCE = 0.00003
+const TRAIL_TAP_METERS = 36
+
+const TILE_PERF = {
+  updateWhenZooming: false,
+  updateWhenIdle: true,
+  keepBuffer: 1,
+  detectRetina: false,
+} as const
 
 function escapeHtml(value: string) {
   return value
@@ -45,6 +57,7 @@ function createStreetsLayer() {
     subdomains: 'abc',
     maxZoom: PBR_MAX_ZOOM,
     minZoom: PBR_MIN_ZOOM,
+    ...TILE_PERF,
   })
 }
 
@@ -56,8 +69,15 @@ function createSatelliteLayer() {
         'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
       maxZoom: PBR_MAX_ZOOM,
       minZoom: PBR_MIN_ZOOM,
+      ...TILE_PERF,
     },
   )
+}
+
+function trailPopupHtml(name: string, skillLevel?: string) {
+  const skill = (skillLevel || '').trim()
+  const skillHtml = skill ? `<p class="trail-popup-skill">${escapeHtml(skill)}</p>` : ''
+  return `<div class="trail-popup-body"><p class="trail-popup-name">${escapeHtml(name)}</p>${skillHtml}</div>`
 }
 
 /** Compact Sat/Map toggle matching prior UX. */
@@ -160,6 +180,7 @@ export function MapView({
   const onFollowChangeRef = useRef(onFollowChange)
   const onPlaceLocationRef = useRef(onPlaceLocation)
   const onOpenMarkerDetailRef = useRef(onOpenMarkerDetail)
+  const retinaWasRef = useRef<boolean | null>(null)
 
   tracksRef.current = tracks
   markersRef.current = markers
@@ -177,10 +198,24 @@ export function MapView({
     mobileRef.current = mobile
     basemapRef.current = 'streets'
 
+    // 1× canvas on mobile: half/third the path pixels vs devicePixelRatio, much smoother pans.
+    if (mobile) {
+      const browser = L.Browser as { retina: boolean }
+      retinaWasRef.current = browser.retina
+      browser.retina = false
+    }
+
     const streets = createStreetsLayer()
-    const satellite = createSatelliteLayer()
     streetsLayerRef.current = streets
-    satelliteLayerRef.current = satellite
+    // Defer satellite until first Sat tap / desktop zoom swap.
+    satelliteLayerRef.current = null
+
+    const ensureSatellite = () => {
+      if (!satelliteLayerRef.current) {
+        satelliteLayerRef.current = createSatelliteLayer()
+      }
+      return satelliteLayerRef.current
+    }
 
     const map = L.map(containerRef.current, {
       center: [PBR_CENTER[1], PBR_CENTER[0]],
@@ -190,8 +225,13 @@ export function MapView({
       maxBounds: toLatLngBounds(PBR_MAX_BOUNDS),
       maxBoundsViscosity: 1,
       preferCanvas: true,
+      // Larger padding = fewer full canvas redraws while panning.
+      renderer: L.canvas({ padding: mobile ? 0.5 : 0.2 }),
       zoomControl: false,
       attributionControl: true,
+      fadeAnimation: false,
+      markerZoomAnimation: false,
+      bounceAtZoomLimits: false,
       dragging: interactive,
       touchZoom: interactive,
       scrollWheelZoom: interactive,
@@ -209,10 +249,12 @@ export function MapView({
     const applyBasemap = (mode: BasemapId) => {
       basemapRef.current = mode
       if (mode === 'satellite') {
+        const satellite = ensureSatellite()
         if (map.hasLayer(streets)) map.removeLayer(streets)
         if (!map.hasLayer(satellite)) satellite.addTo(map)
       } else {
-        if (map.hasLayer(satellite)) map.removeLayer(satellite)
+        const satellite = satelliteLayerRef.current
+        if (satellite && map.hasLayer(satellite)) map.removeLayer(satellite)
         if (!map.hasLayer(streets)) streets.addTo(map)
       }
       basemapControlRef.current?.sync()
@@ -233,34 +275,21 @@ export function MapView({
       syncDesktopBasemap()
     }
 
+    // Trails are non-interactive: Canvas hit-tests every path on touch and tanks mobile pan.
+    // Popups open via map click + nearest-trail (same snap helper as marker place).
     const tracksLayer = L.geoJSON(undefined, {
       style: (feature) => {
         const props = feature?.properties as { color?: string; opacity?: number } | undefined
         return {
           color: props?.color || '#c4c4c4',
-          weight: mobile ? 4 : 3.5,
+          weight: mobile ? 3.25 : 3.5,
           opacity: props?.opacity ?? 0.95,
           lineCap: 'round',
           lineJoin: 'round',
+          interactive: false,
+          // Leaflet re-simplifies per zoom; higher = fewer segments drawn while moving.
+          smoothFactor: mobile ? 2.75 : 1.75,
         }
-      },
-      onEachFeature: (feature, layer) => {
-        const props = feature.properties as {
-          id?: string
-          name?: string
-          skillLevel?: string
-        }
-        if (!props?.name) return
-
-        const skill = (props.skillLevel || '').trim()
-        const skillHtml = skill ? `<p class="trail-popup-skill">${escapeHtml(skill)}</p>` : ''
-        layer.bindPopup(
-          `<div class="trail-popup-body"><p class="trail-popup-name">${escapeHtml(props.name)}</p>${skillHtml}</div>`,
-          { className: 'trail-popup', maxWidth: 240, closeButton: true },
-        )
-        layer.on('popupopen', () => {
-          if (placementModeRef.current === 'selecting') map.closePopup()
-        })
       },
     }).addTo(map)
     tracksLayerRef.current = tracksLayer
@@ -324,7 +353,23 @@ export function MapView({
       if (placementModeRef.current === 'selecting') {
         const snapped = nearestPointOnTrails(e.latlng.lng, e.latlng.lat, tracksRef.current)
         onPlaceLocationRef.current?.(snapped?.lng ?? e.latlng.lng, snapped?.lat ?? e.latlng.lat)
+        return
       }
+
+      const nearest = nearestPointOnTrails(
+        e.latlng.lng,
+        e.latlng.lat,
+        tracksRef.current,
+        TRAIL_TAP_METERS,
+      )
+      if (!nearest) return
+      const track = tracksRef.current.find((t) => t.id === nearest.trackId)
+      if (!track?.name) return
+
+      L.popup({ className: 'trail-popup', maxWidth: 240, closeButton: true })
+        .setLatLng([nearest.lat, nearest.lng])
+        .setContent(trailPopupHtml(track.name, track.skillLevel))
+        .openOn(map)
     })
 
     const breakFollow = () => {
@@ -351,14 +396,19 @@ export function MapView({
       onMapReadyRef.current?.(null)
       map.remove()
       mapRef.current = null
+      if (retinaWasRef.current != null) {
+        ;(L.Browser as { retina: boolean }).retina = retinaWasRef.current
+        retinaWasRef.current = null
+      }
     }
   }, [interactive])
 
   useEffect(() => {
     const layer = tracksLayerRef.current
     if (!layer) return
+    const tolerance = mobileRef.current ? MOBILE_SIMPLIFY_TOLERANCE : DESKTOP_SIMPLIFY_TOLERANCE
     layer.clearLayers()
-    layer.addData(tracksToGeoJson(tracks) as GeoJSON.GeoJsonObject)
+    layer.addData(tracksToGeoJson(tracks, { simplifyTolerance: tolerance }) as GeoJSON.GeoJsonObject)
   }, [tracks])
 
   useEffect(() => {
