@@ -10,7 +10,13 @@ import {
   PBR_MIN_ZOOM,
 } from '../lib/mapRegion'
 
+type BasemapId = 'streets' | 'satellite'
+
 const OSM_LAYER = 'osm'
+const SATELLITE_SOURCE = 'satellite'
+const SATELLITE_LAYER = 'satellite'
+/** Auto-swap to satellite at this zoom. */
+const SAT_ZOOM = 13.5
 
 function isMobileMapDevice(): boolean {
   return (
@@ -19,7 +25,7 @@ function isMobileMapDevice(): boolean {
   )
 }
 
-/** Streets-only basemap — satellite and trails come back later. */
+/** Streets-only initially — satellite is added lazily when zoom crosses SAT_ZOOM. */
 function buildMapStyle(): maplibregl.StyleSpecification {
   return {
     version: 8,
@@ -48,14 +54,71 @@ function buildMapStyle(): maplibregl.StyleSpecification {
   }
 }
 
-export function MapView() {
+function ensureSatelliteLayer(map: MapLibreMap) {
+  if (!map.getSource(SATELLITE_SOURCE)) {
+    map.addSource(SATELLITE_SOURCE, {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      minzoom: Math.max(0, PBR_MIN_ZOOM - 1),
+      maxzoom: 19,
+      attribution:
+        'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+    })
+  }
+
+  if (!map.getLayer(SATELLITE_LAYER)) {
+    map.addLayer({
+      id: SATELLITE_LAYER,
+      type: 'raster',
+      source: SATELLITE_SOURCE,
+      layout: { visibility: 'none' },
+    })
+  }
+}
+
+function unloadSatelliteLayer(map: MapLibreMap) {
+  if (map.getLayer(SATELLITE_LAYER)) map.removeLayer(SATELLITE_LAYER)
+  if (map.getSource(SATELLITE_SOURCE)) map.removeSource(SATELLITE_SOURCE)
+}
+
+function applyBasemap(map: MapLibreMap, mode: BasemapId) {
+  if (mode === 'satellite') {
+    ensureSatelliteLayer(map)
+    if (map.getLayer(OSM_LAYER)) {
+      map.setLayoutProperty(OSM_LAYER, 'visibility', 'none')
+    }
+    if (map.getLayer(SATELLITE_LAYER)) {
+      map.setLayoutProperty(SATELLITE_LAYER, 'visibility', 'visible')
+    }
+    return
+  }
+
+  if (map.getLayer(OSM_LAYER)) {
+    map.setLayoutProperty(OSM_LAYER, 'visibility', 'visible')
+  }
+  unloadSatelliteLayer(map)
+}
+
+type MapViewProps = {
+  onMapReady?: (map: MapLibreMap | null) => void
+  className?: string
+}
+
+export function MapView({ onMapReady, className }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
+  const basemapRef = useRef<BasemapId>('streets')
+  const onMapReadyRef = useRef(onMapReady)
+  onMapReadyRef.current = onMapReady
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
     const mobile = isMobileMapDevice()
+    basemapRef.current = 'streets'
 
     let map: MapLibreMap
     try {
@@ -87,19 +150,29 @@ export function MapView() {
 
     map.addControl(new maplibregl.AttributionControl({ compact: true }))
 
+    const syncBasemapForZoom = () => {
+      const next: BasemapId = map.getZoom() >= SAT_ZOOM ? 'satellite' : 'streets'
+      if (next === basemapRef.current && (next === 'streets' || map.getLayer(SATELLITE_LAYER))) {
+        return
+      }
+      basemapRef.current = next
+      applyBasemap(map, next)
+    }
+
+    map.on('load', () => {
+      syncBasemapForZoom()
+      onMapReadyRef.current?.(map)
+    })
+    map.on('zoomend', syncBasemapForZoom)
+
     mapRef.current = map
 
     return () => {
+      onMapReadyRef.current?.(null)
       map.remove()
       mapRef.current = null
     }
   }, [])
 
-  return (
-    <div
-      ref={containerRef}
-      className="map-root"
-      style={{ position: 'fixed', inset: 0, width: '100%', height: '100%' }}
-    />
-  )
+  return <div ref={containerRef} className={className ?? 'map-root'} />
 }

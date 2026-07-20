@@ -1,28 +1,250 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import type { Map as MapLibreMap } from 'maplibre-gl'
 import { LandingPage } from './components/LandingPage'
 import { MapErrorBoundary } from './components/MapErrorBoundary'
+import { MapMenu } from './components/MapMenu'
 import { MapView } from './components/MapView'
+import { ensurePbrSeedTracks } from './data/pbr/seed'
+import { nextTrailColor, parseGpx } from './lib/gpx'
+import { watchGps } from './lib/geolocation'
+import { flyToGps } from './lib/mapCamera'
+import { nearestPointOnTrails } from './lib/trailGeometry'
+import {
+  loadMarkers,
+  readFileAsText,
+  saveMarker,
+  saveTrack,
+} from './lib/storage'
+import type {
+  GpsPosition,
+  LibrarySelection,
+  MarkerPlacementMode,
+  TrailMarker,
+  TrailMarkerKind,
+  TrailTrack,
+} from './types'
 
 type AppView = 'home' | 'map'
 
 /**
- * Landing unmounts when the map opens — keeps topo animations off the GPU
- * while pinching (that was the lag source).
+ * Landing fully unmounts on map open (keeps topo animations off the GPU).
+ * Satellite + menu are back; trails/markers-on-map still deferred.
  */
 export default function App() {
   const [view, setView] = useState<AppView>('home')
+  const [tracks, setTracks] = useState<TrailTrack[]>([])
+  const [markers, setMarkers] = useState<TrailMarker[]>([])
+  const [selection, setSelection] = useState<LibrarySelection>(null)
+  const [gps, setGps] = useState<GpsPosition | null>(null)
+  const [gpsError, setGpsError] = useState<string | null>(null)
+  const [followGps, setFollowGps] = useState(false)
+  const [map, setMap] = useState<MapLibreMap | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [busyLabel, setBusyLabel] = useState('Working…')
+  const [placementMode, setPlacementMode] = useState<MarkerPlacementMode>('idle')
+  const [pendingLocation, setPendingLocation] = useState<{ lng: number; lat: number } | null>(null)
 
-  if (view === 'map') {
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([ensurePbrSeedTracks(), loadMarkers()])
+      .then(([trackList, markerList]) => {
+        if (cancelled) return
+        setTracks(trackList)
+        setMarkers(markerList)
+        if (trackList[0]) setSelection({ kind: 'track', id: trackList[0].id })
+      })
+      .catch(() => {
+        if (!cancelled) setGpsError('Could not load saved trails.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (view !== 'map') return
+
+    const watch = watchGps(
+      (pos) => {
+        setGps(pos)
+        setGpsError(null)
+      },
+      (message) => setGpsError(message),
+    )
+    return () => watch.clear()
+  }, [view])
+
+  const handleMapReady = useCallback((m: MapLibreMap | null) => {
+    setMap(m)
+  }, [])
+
+  useEffect(() => {
+    if (view !== 'map' || !map) return
+    const id = requestAnimationFrame(() => map.resize())
+    return () => cancelAnimationFrame(id)
+  }, [view, map, menuOpen])
+
+  useEffect(() => {
+    if (view !== 'map') {
+      setMenuOpen(false)
+      setPlacementMode('idle')
+      setPendingLocation(null)
+      setMap(null)
+      setFollowGps(false)
+    }
+  }, [view])
+
+  function resetPlacement() {
+    setPlacementMode('idle')
+    setPendingLocation(null)
+  }
+
+  function setLocationFromCoords(lng: number, lat: number) {
+    const snapped = nearestPointOnTrails(lng, lat, tracks)
+    setPendingLocation({ lng: snapped?.lng ?? lng, lat: snapped?.lat ?? lat })
+    setPlacementMode('idle')
+  }
+
+  async function importGpx(file: File) {
+    setBusy(true)
+    setBusyLabel('Importing GPX…')
+    setGpsError(null)
+    try {
+      const text = await readFileAsText(file)
+      const fallbackName = file.name.replace(/\.[^.]+$/, '') || 'Trail'
+      const parsed = parseGpx(text, fallbackName)
+      const track: TrailTrack = {
+        id: crypto.randomUUID(),
+        name: parsed.name,
+        lines: parsed.lines,
+        color: nextTrailColor(tracks.length),
+        opacity: 0.95,
+        createdAt: Date.now(),
+        source: parsed.source,
+      }
+      await saveTrack(track)
+      setTracks((prev) => [track, ...prev])
+      setSelection({ kind: 'track', id: track.id })
+      resetPlacement()
+      setMenuOpen(false)
+      setView('map')
+    } catch (err) {
+      setGpsError(err instanceof Error ? err.message : 'Could not import that GPX file.')
+      setView('map')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function handleLocate() {
+    if (!map || !gps) {
+      setGpsError((prev) => prev ?? 'Waiting for location permission…')
+      return
+    }
+    if (!flyToGps(map, gps)) {
+      setGpsError('Location is outside the Priest Ridge map area.')
+      return
+    }
+    setFollowGps(true)
+  }
+
+  function handleStartSelectLocation() {
+    setPlacementMode('selecting')
+    setPendingLocation(null)
+    setMenuOpen(false)
+  }
+
+  function handleMarkCurrentLocation() {
+    if (!gps) {
+      setGpsError((prev) => prev ?? 'Waiting for location permission…')
+      return
+    }
+    setLocationFromCoords(gps.lng, gps.lat)
+  }
+
+  async function handleSaveMarker(kind: TrailMarkerKind, note: string) {
+    if (!pendingLocation) return
+
+    const snapped = nearestPointOnTrails(pendingLocation.lng, pendingLocation.lat, tracks)
+    const marker: TrailMarker = {
+      id: crypto.randomUUID(),
+      lng: snapped?.lng ?? pendingLocation.lng,
+      lat: snapped?.lat ?? pendingLocation.lat,
+      kind,
+      note: note || undefined,
+      trackId: snapped?.trackId,
+      createdAt: Date.now(),
+    }
+
+    await saveMarker(marker)
+    setMarkers((prev) => [marker, ...prev])
+    resetPlacement()
+  }
+
+  if (view === 'home') {
     return (
-      <MapErrorBoundary>
-        <MapView />
-      </MapErrorBoundary>
+      <div className="app-frame">
+        <LandingPage onOpenMap={() => setView('map')} />
+      </div>
     )
   }
 
   return (
-    <div className="app-frame">
-      <LandingPage onOpenMap={() => setView('map')} />
+    <div className={`map-page ${placementMode === 'selecting' ? 'is-placing' : ''}`}>
+      <MapErrorBoundary>
+        <MapView onMapReady={handleMapReady} />
+      </MapErrorBoundary>
+
+      {placementMode === 'selecting' && (
+        <div className="placement-hint" role="status">
+          Tap on the trail to set a marker location
+        </div>
+      )}
+
+      <MapMenu
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        busy={busy}
+        loading={loading}
+        followGps={followGps}
+        gps={gps}
+        tracks={tracks}
+        markers={markers}
+        selection={selection}
+        placementMode={placementMode}
+        pendingLocation={pendingLocation}
+        onSelect={setSelection}
+        onImportGpx={importGpx}
+        onLocate={handleLocate}
+        onGoHome={() => setView('home')}
+        onFocusTrack={() => {
+          /* Trails not on the map yet */
+        }}
+        onStartSelectLocation={handleStartSelectLocation}
+        onMarkCurrentLocation={handleMarkCurrentLocation}
+        onCancelPlacement={resetPlacement}
+        onSaveMarker={handleSaveMarker}
+      />
+
+      {busy && (
+        <div className="toast" role="status">
+          {busyLabel}
+        </div>
+      )}
+
+      {gpsError && !busy && (
+        <div className="toast" role="status">
+          {gpsError}
+          <button type="button" className="toast-dismiss" onClick={() => setGpsError(null)}>
+            ×
+          </button>
+        </div>
+      )}
     </div>
   )
 }
