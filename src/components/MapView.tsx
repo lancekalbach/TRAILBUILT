@@ -55,33 +55,9 @@ const PERF_TRAIL_LINE = 'perf-trail-line'
 // const MARKERS_SOURCE = 'trail-markers'
 // const MARKERS_LAYER = 'trail-markers-symbol'
 
-/** Streets-only style — satellite is added lazily when zoom crosses SAT_ZOOM. */
-function buildMapStyle(): maplibregl.StyleSpecification {
-  return {
-    version: 8,
-    sources: {
-      osm: {
-        type: 'raster',
-        tiles: [
-          'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        ],
-        tileSize: 256,
-        minzoom: Math.max(0, PBR_MIN_ZOOM - 1),
-        maxzoom: 19,
-        attribution: '© OpenStreetMap contributors',
-      },
-    },
-    layers: [
-      {
-        id: OSM_LAYER,
-        type: 'raster',
-        source: 'osm',
-        layout: { visibility: 'visible' },
-      },
-    ],
-  }
+/** Official MapLibre demo style (vector demotiles). */
+function buildMapStyle(): string {
+  return 'https://demotiles.maplibre.org/style.json'
 }
 
 function ensureSatelliteLayer(map: MapLibreMap) {
