@@ -29,6 +29,12 @@ export function MapView() {
     }
   }, [])
 
-  // Demo CSS: html, body, #map { height: 100%; }
-  return <div ref={containerRef} id="map" className="map-root" />
+  // Match demo: html, body, #map { height: 100%; }
+  return (
+    <div
+      ref={containerRef}
+      id="map"
+      style={{ position: 'fixed', inset: 0, width: '100%', height: '100%' }}
+    />
+  )
 }

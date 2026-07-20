@@ -1,10 +1,6 @@
-import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import './styles/app.css'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+// StrictMode double-mounts in dev (creates/destroys the map twice). Off for map perf testing.
+createRoot(document.getElementById('root')!).render(<App />)

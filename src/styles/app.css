@@ -84,8 +84,9 @@ input {
   pointer-events: auto;
 }
 
+/* Do not keep hidden screens in the layout — opacity:0 + display:block still runs animations. */
 .screen[hidden] {
-  display: block !important;
+  display: none !important;
 }
 
 .map-page {
