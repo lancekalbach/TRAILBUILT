@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
-import type { Map as MapLibreMap } from 'maplibre-gl'
+import type { GeoJSONSource, Map as MapLibreMap, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import type { GpsPosition, TrailTrack } from '../types'
+import { trackBounds, tracksToGeoJson } from '../lib/gpx'
 import {
+  isInsidePbrRegion,
   PBR_CENTER,
   PBR_DEFAULT_ZOOM,
   PBR_MAX_BOUNDS,
@@ -17,6 +20,13 @@ const SATELLITE_SOURCE = 'satellite'
 const SATELLITE_LAYER = 'satellite'
 /** Auto-swap to satellite at this zoom. */
 const SAT_ZOOM = 13.5
+
+const TRACKS_SOURCE = 'trail-tracks'
+const TRACKS_LINE = 'trail-tracks-line'
+
+function prefersReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
 
 function isMobileMapDevice(): boolean {
   return (
@@ -70,12 +80,16 @@ function ensureSatelliteLayer(map: MapLibreMap) {
   }
 
   if (!map.getLayer(SATELLITE_LAYER)) {
-    map.addLayer({
-      id: SATELLITE_LAYER,
-      type: 'raster',
-      source: SATELLITE_SOURCE,
-      layout: { visibility: 'none' },
-    })
+    const beforeId = map.getLayer(TRACKS_LINE) ? TRACKS_LINE : undefined
+    map.addLayer(
+      {
+        id: SATELLITE_LAYER,
+        type: 'raster',
+        source: SATELLITE_SOURCE,
+        layout: { visibility: 'none' },
+      },
+      beforeId,
+    )
   }
 }
 
@@ -102,22 +116,70 @@ function applyBasemap(map: MapLibreMap, mode: BasemapId) {
   unloadSatelliteLayer(map)
 }
 
+function ensureTrackLayers(map: MapLibreMap, mobile: boolean) {
+  if (!map.getSource(TRACKS_SOURCE)) {
+    map.addSource(TRACKS_SOURCE, {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+      tolerance: mobile ? 2 : 0.5,
+      buffer: mobile ? 0 : 64,
+    })
+  }
+
+  if (!map.getLayer(TRACKS_LINE)) {
+    map.addLayer({
+      id: TRACKS_LINE,
+      type: 'line',
+      source: TRACKS_SOURCE,
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: {
+        'line-color': ['get', 'color'],
+        'line-width': mobile ? 4 : 3.5,
+        'line-opacity': ['coalesce', ['get', 'opacity'], 0.95],
+      },
+    })
+  }
+}
+
 type MapViewProps = {
+  tracks?: TrailTrack[]
+  gps: GpsPosition | null
+  followGps: boolean
+  onFollowChange?: (follow: boolean) => void
   onMapReady?: (map: MapLibreMap | null) => void
+  focusTrackId?: string | null
   className?: string
 }
 
-export function MapView({ onMapReady, className }: MapViewProps) {
+export function MapView({
+  tracks = [],
+  gps,
+  followGps,
+  onFollowChange,
+  onMapReady,
+  focusTrackId,
+  className,
+}: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
+  const gpsMarkerRef = useRef<Marker | null>(null)
   const basemapRef = useRef<BasemapId>('streets')
+  const mobileRef = useRef(false)
+  const tracksRef = useRef(tracks)
+  const followGpsRef = useRef(followGps)
   const onMapReadyRef = useRef(onMapReady)
+  const onFollowChangeRef = useRef(onFollowChange)
+
+  tracksRef.current = tracks
+  followGpsRef.current = followGps
   onMapReadyRef.current = onMapReady
+  onFollowChangeRef.current = onFollowChange
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
     const mobile = isMobileMapDevice()
+    mobileRef.current = mobile
     basemapRef.current = 'streets'
 
     let map: MapLibreMap
@@ -159,7 +221,21 @@ export function MapView({ onMapReady, className }: MapViewProps) {
       applyBasemap(map, next)
     }
 
+    const breakFollow = () => {
+      if (!followGpsRef.current) return
+      onFollowChangeRef.current?.(false)
+    }
+    map.on('dragstart', breakFollow)
+    map.on('zoomstart', breakFollow)
+
     map.on('load', () => {
+      ensureTrackLayers(map, mobile)
+      const source = map.getSource(TRACKS_SOURCE) as GeoJSONSource
+      source.setData(
+        tracksToGeoJson(tracksRef.current, {
+          simplifyTolerance: mobile ? 0.00006 : 0.00003,
+        }),
+      )
       syncBasemapForZoom()
       onMapReadyRef.current?.(map)
     })
@@ -168,11 +244,61 @@ export function MapView({ onMapReady, className }: MapViewProps) {
     mapRef.current = map
 
     return () => {
+      gpsMarkerRef.current?.remove()
+      gpsMarkerRef.current = null
       onMapReadyRef.current?.(null)
       map.remove()
       mapRef.current = null
     }
   }, [])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map?.getSource(TRACKS_SOURCE)) return
+    const source = map.getSource(TRACKS_SOURCE) as GeoJSONSource
+    const mobile = mobileRef.current
+    source.setData(
+      tracksToGeoJson(tracks, {
+        simplifyTolerance: mobile ? 0.00006 : 0.00003,
+      }),
+    )
+  }, [tracks])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !focusTrackId) return
+    const track = tracks.find((t) => t.id === focusTrackId)
+    if (!track) return
+    const bounds = trackBounds(track)
+    if (!bounds) return
+    map.fitBounds(bounds, {
+      padding: 56,
+      maxZoom: 16,
+      animate: !prefersReducedMotion(),
+      duration: 800,
+    })
+  }, [focusTrackId, tracks])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !gps) return
+
+    const lngLat: [number, number] = [gps.lng, gps.lat]
+
+    if (!gpsMarkerRef.current) {
+      const el = document.createElement('div')
+      el.className = 'gps-dot'
+      gpsMarkerRef.current = new maplibregl.Marker({ element: el, pitchAlignment: 'map' })
+        .setLngLat(lngLat)
+        .addTo(map)
+    } else {
+      gpsMarkerRef.current.setLngLat(lngLat)
+    }
+
+    if (followGpsRef.current && isInsidePbrRegion(gps.lng, gps.lat)) {
+      map.jumpTo({ center: lngLat })
+    }
+  }, [gps])
 
   return <div ref={containerRef} className={className ?? 'map-root'} />
 }

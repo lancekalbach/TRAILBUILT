@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import { LandingPage } from './components/LandingPage'
 import { MapErrorBoundary } from './components/MapErrorBoundary'
 import { MapMenu } from './components/MapMenu'
 import { MapView } from './components/MapView'
-import { ensurePbrSeedTracks } from './data/pbr/seed'
+import { ensurePbrSeedTracks, pbrNetworkBounds } from './data/pbr/seed'
 import { nextTrailColor, parseGpx } from './lib/gpx'
 import { watchGps } from './lib/geolocation'
 import { flyToGps } from './lib/mapCamera'
@@ -28,7 +28,6 @@ type AppView = 'home' | 'map'
 
 /**
  * Landing fully unmounts on map open (keeps topo animations off the GPU).
- * Satellite + menu are back; trails/markers-on-map still deferred.
  */
 export default function App() {
   const [view, setView] = useState<AppView>('home')
@@ -39,6 +38,7 @@ export default function App() {
   const [gpsError, setGpsError] = useState<string | null>(null)
   const [followGps, setFollowGps] = useState(false)
   const [map, setMap] = useState<MapLibreMap | null>(null)
+  const [focusTrackId, setFocusTrackId] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -79,9 +79,22 @@ export default function App() {
     return () => watch.clear()
   }, [view])
 
+  const handleFollowChange = useCallback((follow: boolean) => {
+    setFollowGps((prev) => (prev === follow ? prev : follow))
+  }, [])
+
   const handleMapReady = useCallback((m: MapLibreMap | null) => {
     setMap(m)
   }, [])
+
+  const didInitialCamera = useRef(false)
+  useEffect(() => {
+    if (didInitialCamera.current || !map || loading || tracks.length === 0) return
+    const bounds = pbrNetworkBounds(tracks)
+    if (!bounds) return
+    didInitialCamera.current = true
+    map.fitBounds(bounds, { padding: 56, maxZoom: 14, animate: false })
+  }, [map, tracks, loading])
 
   useEffect(() => {
     if (view !== 'map' || !map) return
@@ -96,6 +109,7 @@ export default function App() {
       setPendingLocation(null)
       setMap(null)
       setFollowGps(false)
+      didInitialCamera.current = false
     }
   }, [view])
 
@@ -130,6 +144,8 @@ export default function App() {
       await saveTrack(track)
       setTracks((prev) => [track, ...prev])
       setSelection({ kind: 'track', id: track.id })
+      setFocusTrackId(null)
+      requestAnimationFrame(() => setFocusTrackId(track.id))
       resetPlacement()
       setMenuOpen(false)
       setView('map')
@@ -197,7 +213,14 @@ export default function App() {
   return (
     <div className={`map-page ${placementMode === 'selecting' ? 'is-placing' : ''}`}>
       <MapErrorBoundary>
-        <MapView onMapReady={handleMapReady} />
+        <MapView
+          tracks={tracks}
+          gps={gps}
+          followGps={followGps}
+          onFollowChange={handleFollowChange}
+          onMapReady={handleMapReady}
+          focusTrackId={focusTrackId}
+        />
       </MapErrorBoundary>
 
       {placementMode === 'selecting' && (
@@ -222,8 +245,9 @@ export default function App() {
         onImportGpx={importGpx}
         onLocate={handleLocate}
         onGoHome={() => setView('home')}
-        onFocusTrack={() => {
-          /* Trails not on the map yet */
+        onFocusTrack={(id) => {
+          setFocusTrackId(null)
+          requestAnimationFrame(() => setFocusTrackId(id))
         }}
         onStartSelectLocation={handleStartSelectLocation}
         onMarkCurrentLocation={handleMarkCurrentLocation}
