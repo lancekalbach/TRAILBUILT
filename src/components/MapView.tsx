@@ -9,10 +9,6 @@ import type { GpsPosition, MarkerPlacementMode, TrailMarker, TrailTrack } from '
 // import { isInsidePbrRegion } from '../lib/mapRegion'
 // import { nearestPointOnTrails } from '../lib/trailGeometry'
 import {
-  PBR_CENTER,
-  PBR_DEFAULT_ZOOM,
-  PBR_MAX_BOUNDS,
-  PBR_MAX_ZOOM,
   PBR_MIN_ZOOM,
 } from '../lib/mapRegion'
 import { firstRodeoTrail } from '../data/pbr/vector/firstRodeo'
@@ -54,11 +50,6 @@ const PERF_TRAIL_LINE = 'perf-trail-line'
 // PERF: marker overlay disabled
 // const MARKERS_SOURCE = 'trail-markers'
 // const MARKERS_LAYER = 'trail-markers-symbol'
-
-/** Official MapLibre demo style (vector demotiles). */
-function buildMapStyle(): string {
-  return 'https://demotiles.maplibre.org/style.json'
-}
 
 function ensureSatelliteLayer(map: MapLibreMap) {
   if (!map.getSource(SATELLITE_SOURCE)) {
@@ -240,25 +231,10 @@ export function MapView({
     try {
       map = new maplibregl.Map({
         container: containerRef.current,
-        style: buildMapStyle(),
-        center: PBR_CENTER,
-        zoom: PBR_DEFAULT_ZOOM,
-        minZoom: PBR_MIN_ZOOM,
-        maxZoom: PBR_MAX_ZOOM,
-        maxBounds: PBR_MAX_BOUNDS,
-        interactive,
-        attributionControl: false,
-        pixelRatio: mobile ? 1 : undefined,
-        fadeDuration: 0,
-        maxTileCacheSize: mobile ? 24 : 80,
-        maxTileCacheZoomLevels: mobile ? 2 : 5,
-        cancelPendingTileRequestsWhileZooming: true,
-        refreshExpiredTiles: false,
-        renderWorldCopies: false,
-        dragRotate: !mobile,
-        pitchWithRotate: false,
-        touchPitch: !mobile,
-        trackResize: true,
+        style: 'https://demotiles.maplibre.org/style.json',
+        center: [0, 0],
+        zoom: 1,
+        maplibreLogo: true,
       })
     } catch (err) {
       console.error('Failed to create map', err)
