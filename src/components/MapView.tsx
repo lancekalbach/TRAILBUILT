@@ -121,8 +121,9 @@ function ensureTrackLayers(map: MapLibreMap, mobile: boolean) {
     map.addSource(TRACKS_SOURCE, {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] },
-      tolerance: mobile ? 2 : 0.5,
-      buffer: mobile ? 0 : 64,
+      // Low tolerance keeps trails smooth; MapLibre default is 0.375.
+      tolerance: mobile ? 0.25 : 0.1,
+      buffer: mobile ? 32 : 64,
     })
   }
 
@@ -231,11 +232,7 @@ export function MapView({
     map.on('load', () => {
       ensureTrackLayers(map, mobile)
       const source = map.getSource(TRACKS_SOURCE) as GeoJSONSource
-      source.setData(
-        tracksToGeoJson(tracksRef.current, {
-          simplifyTolerance: mobile ? 0.00006 : 0.00003,
-        }),
-      )
+      source.setData(tracksToGeoJson(tracksRef.current))
       syncBasemapForZoom()
       onMapReadyRef.current?.(map)
     })
@@ -256,12 +253,7 @@ export function MapView({
     const map = mapRef.current
     if (!map?.getSource(TRACKS_SOURCE)) return
     const source = map.getSource(TRACKS_SOURCE) as GeoJSONSource
-    const mobile = mobileRef.current
-    source.setData(
-      tracksToGeoJson(tracks, {
-        simplifyTolerance: mobile ? 0.00006 : 0.00003,
-      }),
-    )
+    source.setData(tracksToGeoJson(tracks))
   }, [tracks])
 
   useEffect(() => {

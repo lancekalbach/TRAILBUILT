@@ -106,15 +106,18 @@ function MenuBody({
 
       <div className="map-menu-divider" />
 
-      <TrailLibrary
-        tracks={tracks}
-        selection={selection}
-        onSelect={onSelect}
-        onFocusTrack={(id) => {
-          onFocusTrack(id)
-          onOpenChange(false)
-        }}
-      />
+      <div className="map-menu-section">
+        <h3 className="map-menu-section-title">Trails</h3>
+        <TrailLibrary
+          tracks={tracks}
+          selection={selection}
+          onSelect={onSelect}
+          onFocusTrack={(id) => {
+            onFocusTrack(id)
+            onOpenChange(false)
+          }}
+        />
+      </div>
     </>
   )
 }
@@ -163,7 +166,7 @@ function MenuShell({
             aria-label={open ? 'Close menu' : 'Open menu'}
             onClick={() => onOpenChange(!open)}
           >
-            Menu
+            <span className="map-dropdown-trigger-label">Menu</span>
             <span className="map-dropdown-caret" aria-hidden>
               <svg viewBox="0 0 48 16" width="20" height="8" fill="none">
                 <path
@@ -192,7 +195,11 @@ function MenuShell({
               role="dialog"
               aria-label="Map menu"
             >
-              {children}
+              <div className="map-dropdown-panel-head">
+                <p className="map-dropdown-kicker">Trail tools</p>
+                <h2 className="map-dropdown-title">Controls</h2>
+              </div>
+              <div className="map-dropdown-panel-body">{children}</div>
             </div>
           </>
         )}
