@@ -83,6 +83,10 @@ export async function saveMarker(marker: TrailMarker): Promise<void> {
   await put(MARKERS, marker)
 }
 
+export async function updateMarker(marker: TrailMarker): Promise<void> {
+  await put(MARKERS, marker)
+}
+
 export async function deleteMarker(id: string): Promise<void> {
   await remove(MARKERS, id)
 }

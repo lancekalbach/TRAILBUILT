@@ -44,6 +44,8 @@ export type TrailMarker = {
   note?: string
   trackId?: string
   createdAt: number
+  participantIds?: string[]
+  completedAt?: number
 }
 
 export type MarkerPlacementMode = 'idle' | 'selecting'

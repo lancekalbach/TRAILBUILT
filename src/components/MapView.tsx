@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
-import type { GeoJSONSource, Map as MapLibreMap, Marker } from 'maplibre-gl'
+import type { GeoJSONSource, Map as MapLibreMap, Marker, Popup } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import type { GpsPosition, TrailTrack } from '../types'
+import type { GpsPosition, TrailMarker, TrailTrack } from '../types'
 import { trackBounds, tracksToGeoJson } from '../lib/gpx'
+import { markerKindIconSvg, markerKindMeta } from '../lib/markers'
+import { trackLengthMeters } from '../lib/trailGeometry'
 import {
   isInsidePbrRegion,
   PBR_CENTER,
@@ -22,6 +24,7 @@ const SATELLITE_LAYER = 'satellite'
 const SAT_ZOOM = 13.5
 
 const TRACKS_SOURCE = 'trail-tracks'
+const TRACKS_HIT = 'trail-tracks-hit'
 const TRACKS_LINE = 'trail-tracks-line'
 
 function prefersReducedMotion(): boolean {
@@ -127,6 +130,19 @@ function ensureTrackLayers(map: MapLibreMap, mobile: boolean) {
     })
   }
 
+  if (!map.getLayer(TRACKS_HIT)) {
+    map.addLayer({
+      id: TRACKS_HIT,
+      type: 'line',
+      source: TRACKS_SOURCE,
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: {
+        'line-color': 'rgba(0, 0, 0, 0)',
+        'line-width': mobile ? 24 : 18,
+      },
+    })
+  }
+
   if (!map.getLayer(TRACKS_LINE)) {
     map.addLayer({
       id: TRACKS_LINE,
@@ -142,10 +158,87 @@ function ensureTrackLayers(map: MapLibreMap, mobile: boolean) {
   }
 }
 
+function formatTrailLength(track: TrailTrack): string {
+  const miles = trackLengthMeters(track) / 1609.344
+  return `${miles < 1 ? miles.toFixed(2) : miles.toFixed(1)} miles`
+}
+
+function showTrailPopup(map: MapLibreMap, track: TrailTrack, lng: number, lat: number): Popup {
+  const body = document.createElement('div')
+  body.className = 'trail-popup-body'
+
+  const name = document.createElement('h3')
+  name.className = 'trail-popup-name'
+  name.textContent = track.name
+
+  const length = document.createElement('p')
+  length.className = 'trail-popup-skill'
+  length.textContent = formatTrailLength(track)
+
+  body.append(name, length)
+
+  return new maplibregl.Popup({
+    className: 'trail-popup',
+    closeButton: true,
+    closeOnClick: true,
+    offset: 8,
+  })
+    .setLngLat([lng, lat])
+    .setDOMContent(body)
+    .addTo(map)
+}
+
+function syncTrailMarkers(
+  map: MapLibreMap,
+  markers: TrailMarker[],
+  markerInstances: Map<string, Marker>,
+  onOpenMarkerDetail?: (id: string) => void,
+) {
+  for (const instance of markerInstances.values()) instance.remove()
+  markerInstances.clear()
+
+  for (const marker of markers) {
+    const meta = markerKindMeta(marker.kind)
+    const element = document.createElement('div')
+    element.className = 'trail-marker-icon'
+    element.title = meta.label
+    element.tabIndex = 0
+    element.setAttribute('role', 'button')
+    element.setAttribute('aria-label', `View ${meta.label.toLowerCase()} details`)
+    element.innerHTML = markerKindIconSvg(marker.kind, 22)
+    const openDetails = (event: Event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      onOpenMarkerDetail?.(marker.id)
+    }
+    element.addEventListener('click', openDetails)
+    element.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      openDetails(event)
+    })
+
+    const instance = new maplibregl.Marker({
+      element,
+      anchor: 'bottom',
+      offset: [0, -7],
+      pitchAlignment: 'map',
+    })
+      .setLngLat([marker.lng, marker.lat])
+      .addTo(map)
+
+    markerInstances.set(marker.id, instance)
+  }
+}
+
 type MapViewProps = {
   tracks?: TrailTrack[]
+  markers?: TrailMarker[]
   gps: GpsPosition | null
   followGps: boolean
+  selectedTrackId?: string | null
+  selectingLocation?: boolean
+  onSelectLocation?: (lng: number, lat: number, trackId: string | null) => void
+  onOpenMarkerDetail?: (id: string) => void
   onFollowChange?: (follow: boolean) => void
   onMapReady?: (map: MapLibreMap | null) => void
   focusTrackId?: string | null
@@ -154,8 +247,13 @@ type MapViewProps = {
 
 export function MapView({
   tracks = [],
+  markers = [],
   gps,
   followGps,
+  selectedTrackId,
+  selectingLocation = false,
+  onSelectLocation,
+  onOpenMarkerDetail,
   onFollowChange,
   onMapReady,
   focusTrackId,
@@ -164,17 +262,27 @@ export function MapView({
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const gpsMarkerRef = useRef<Marker | null>(null)
+  const trailMarkerRefs = useRef(new Map<string, Marker>())
+  const trailPopupRef = useRef<Popup | null>(null)
   const basemapRef = useRef<BasemapId>('streets')
   const mobileRef = useRef(false)
   const tracksRef = useRef(tracks)
+  const markersRef = useRef(markers)
+  const selectedTrackIdRef = useRef(selectedTrackId)
   const followGpsRef = useRef(followGps)
   const onMapReadyRef = useRef(onMapReady)
   const onFollowChangeRef = useRef(onFollowChange)
+  const onSelectLocationRef = useRef(onSelectLocation)
+  const onOpenMarkerDetailRef = useRef(onOpenMarkerDetail)
 
   tracksRef.current = tracks
+  markersRef.current = markers
+  selectedTrackIdRef.current = selectedTrackId
   followGpsRef.current = followGps
   onMapReadyRef.current = onMapReady
   onFollowChangeRef.current = onFollowChange
+  onSelectLocationRef.current = onSelectLocation
+  onOpenMarkerDetailRef.current = onOpenMarkerDetail
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
@@ -228,11 +336,47 @@ export function MapView({
     }
     map.on('dragstart', breakFollow)
     map.on('zoomstart', breakFollow)
+    map.on('click', (event) => {
+      const selectLocation = onSelectLocationRef.current
+      if (selectLocation) {
+        trailPopupRef.current?.remove()
+        trailPopupRef.current = null
+        const features = map.queryRenderedFeatures(event.point, { layers: [TRACKS_HIT] })
+        const selectedFeature = features.find(
+          (feature) => feature.properties?.id === selectedTrackIdRef.current,
+        )
+        const clickedTrackId = selectedFeature?.properties?.id ?? features[0]?.properties?.id
+        selectLocation(
+          event.lngLat.lng,
+          event.lngLat.lat,
+          typeof clickedTrackId === 'string' ? clickedTrackId : null,
+        )
+        return
+      }
+
+      const feature = map.queryRenderedFeatures(event.point, { layers: [TRACKS_HIT] })[0]
+      const trackId = feature?.properties?.id
+      const track = tracksRef.current.find((item) => item.id === trackId)
+      if (!track) return
+
+      trailPopupRef.current?.remove()
+      trailPopupRef.current = showTrailPopup(
+        map,
+        track,
+        event.lngLat.lng,
+        event.lngLat.lat,
+      )
+    })
 
     map.on('load', () => {
       ensureTrackLayers(map, mobile)
       const source = map.getSource(TRACKS_SOURCE) as GeoJSONSource
       source.setData(tracksToGeoJson(tracksRef.current))
+      syncTrailMarkers(map, markersRef.current, trailMarkerRefs.current, (id) => {
+        trailPopupRef.current?.remove()
+        trailPopupRef.current = null
+        onOpenMarkerDetailRef.current?.(id)
+      })
       syncBasemapForZoom()
       onMapReadyRef.current?.(map)
     })
@@ -243,6 +387,10 @@ export function MapView({
     return () => {
       gpsMarkerRef.current?.remove()
       gpsMarkerRef.current = null
+      for (const marker of trailMarkerRefs.current.values()) marker.remove()
+      trailMarkerRefs.current.clear()
+      trailPopupRef.current?.remove()
+      trailPopupRef.current = null
       onMapReadyRef.current?.(null)
       map.remove()
       mapRef.current = null
@@ -258,6 +406,16 @@ export function MapView({
 
   useEffect(() => {
     const map = mapRef.current
+    if (!map?.loaded()) return
+    syncTrailMarkers(map, markers, trailMarkerRefs.current, (id) => {
+      trailPopupRef.current?.remove()
+      trailPopupRef.current = null
+      onOpenMarkerDetailRef.current?.(id)
+    })
+  }, [markers])
+
+  useEffect(() => {
+    const map = mapRef.current
     if (!map || !focusTrackId) return
     const track = tracks.find((t) => t.id === focusTrackId)
     if (!track) return
@@ -270,6 +428,15 @@ export function MapView({
       duration: 800,
     })
   }, [focusTrackId, tracks])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    map.getCanvas().style.cursor = selectingLocation ? 'crosshair' : ''
+    return () => {
+      map.getCanvas().style.cursor = ''
+    }
+  }, [selectingLocation])
 
   useEffect(() => {
     const map = mapRef.current

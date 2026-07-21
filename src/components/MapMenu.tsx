@@ -91,6 +91,7 @@ function MenuBody({
       <div className="map-menu-divider" />
 
       <TrailMarkerForm
+        selectedTrailName={tracks.find((track) => track.id === selection?.id)?.name ?? null}
         placementMode={placementMode}
         pendingLocation={pendingLocation}
         gps={gps}
@@ -107,15 +108,12 @@ function MenuBody({
       <div className="map-menu-divider" />
 
       <div className="map-menu-section">
-        <h3 className="map-menu-section-title">Trails</h3>
+        <h3 className="map-menu-section-title">Select a trail</h3>
         <TrailLibrary
           tracks={tracks}
           selection={selection}
           onSelect={onSelect}
-          onFocusTrack={(id) => {
-            onFocusTrack(id)
-            onOpenChange(false)
-          }}
+          onFocusTrack={onFocusTrack}
         />
       </div>
     </>

@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
+import { CrewPanel } from './components/CrewPanel'
 import { LandingPage } from './components/LandingPage'
 import { MapErrorBoundary } from './components/MapErrorBoundary'
 import { MapMenu } from './components/MapMenu'
 import { MapView } from './components/MapView'
+import { MarkerDetailSheet } from './components/MarkerDetailSheet'
 import { ensurePbrSeedTracks, pbrNetworkBounds } from './data/pbr/seed'
 import { nextTrailColor, parseGpx } from './lib/gpx'
 import { watchGps } from './lib/geolocation'
 import { flyToGps } from './lib/mapCamera'
 import { nearestPointOnTrails } from './lib/trailGeometry'
 import {
+  deleteMarker,
   loadMarkers,
   readFileAsText,
   saveMarker,
   saveTrack,
+  updateMarker,
 } from './lib/storage'
 import type {
   GpsPosition,
@@ -24,7 +28,9 @@ import type {
   TrailTrack,
 } from './types'
 
-type AppView = 'home' | 'map'
+type AppView = 'home' | 'map' | 'crew'
+
+const LOCAL_MEMBER_ID = 'you'
 
 /**
  * Landing fully unmounts on map open (keeps topo animations off the GPU).
@@ -45,6 +51,7 @@ export default function App() {
   const [busyLabel, setBusyLabel] = useState('Working…')
   const [placementMode, setPlacementMode] = useState<MarkerPlacementMode>('idle')
   const [pendingLocation, setPendingLocation] = useState<{ lng: number; lat: number } | null>(null)
+  const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -53,7 +60,9 @@ export default function App() {
         if (cancelled) return
         setTracks(trackList)
         setMarkers(markerList)
-        if (trackList[0]) setSelection({ kind: 'track', id: trackList[0].id })
+        const initialTrack =
+          trackList.find((track) => track.skillLevel?.toLowerCase() !== 'access') ?? trackList[0]
+        if (initialTrack) setSelection({ kind: 'track', id: initialTrack.id })
       })
       .catch(() => {
         if (!cancelled) setGpsError('Could not load saved trails.')
@@ -107,6 +116,7 @@ export default function App() {
       setMenuOpen(false)
       setPlacementMode('idle')
       setPendingLocation(null)
+      setSelectedMarkerId(null)
       setMap(null)
       setFollowGps(false)
       didInitialCamera.current = false
@@ -118,10 +128,36 @@ export default function App() {
     setPendingLocation(null)
   }
 
-  function setLocationFromCoords(lng: number, lat: number) {
-    const snapped = nearestPointOnTrails(lng, lat, tracks)
-    setPendingLocation({ lng: snapped?.lng ?? lng, lat: snapped?.lat ?? lat })
+  function setLocationFromCoords(lng: number, lat: number, clickedTrackId?: string | null) {
+    if (clickedTrackId === null) {
+      setGpsError('Tap directly on the trail you want to mark.')
+      return
+    }
+
+    const targetTrackId = clickedTrackId ?? selection?.id
+    const selectedTrack = tracks.find((track) => track.id === targetTrackId)
+    if (!selectedTrack) {
+      setGpsError('Select a trail before adding a marker.')
+      setPlacementMode('idle')
+      setMenuOpen(true)
+      return
+    }
+
+    const snapped = nearestPointOnTrails(lng, lat, [selectedTrack])
+    if (!snapped) {
+      setGpsError('Could not place a marker on the selected trail.')
+      setPlacementMode('idle')
+      setMenuOpen(true)
+      return
+    }
+
+    if (selection?.id !== selectedTrack.id) {
+      setSelection({ kind: 'track', id: selectedTrack.id })
+    }
+    setPendingLocation({ lng: snapped.lng, lat: snapped.lat })
+    setGpsError(null)
     setPlacementMode('idle')
+    setMenuOpen(true)
   }
 
   async function importGpx(file: File) {
@@ -170,6 +206,11 @@ export default function App() {
   }
 
   function handleStartSelectLocation() {
+    if (!selection) {
+      setGpsError('Select a trail before adding a marker.')
+      return
+    }
+    setGpsError(null)
     setPlacementMode('selecting')
     setPendingLocation(null)
     setMenuOpen(false)
@@ -184,16 +225,17 @@ export default function App() {
   }
 
   async function handleSaveMarker(kind: TrailMarkerKind, note: string) {
-    if (!pendingLocation) return
+    const selectedTrack = tracks.find((track) => track.id === selection?.id)
+    if (!pendingLocation || !selectedTrack) return
 
-    const snapped = nearestPointOnTrails(pendingLocation.lng, pendingLocation.lat, tracks)
+    const snapped = nearestPointOnTrails(pendingLocation.lng, pendingLocation.lat, [selectedTrack])
     const marker: TrailMarker = {
       id: crypto.randomUUID(),
       lng: snapped?.lng ?? pendingLocation.lng,
       lat: snapped?.lat ?? pendingLocation.lat,
       kind,
       note: note || undefined,
-      trackId: snapped?.trackId,
+      trackId: selectedTrack.id,
       createdAt: Date.now(),
     }
 
@@ -202,11 +244,69 @@ export default function App() {
     resetPlacement()
   }
 
+  async function handleDeleteMarker(id: string) {
+    try {
+      await deleteMarker(id)
+      setMarkers((prev) => prev.filter((marker) => marker.id !== id))
+      setSelectedMarkerId(null)
+    } catch {
+      setGpsError('Could not delete that marker.')
+    }
+  }
+
+  async function handleAcceptTask(markerId: string) {
+    const marker = markers.find((item) => item.id === markerId)
+    if (!marker || marker.completedAt || marker.participantIds?.includes(LOCAL_MEMBER_ID)) return
+
+    const updatedMarker: TrailMarker = {
+      ...marker,
+      participantIds: [...(marker.participantIds ?? []), LOCAL_MEMBER_ID],
+    }
+    await updateMarker(updatedMarker)
+    setMarkers((prev) => prev.map((item) => (item.id === markerId ? updatedMarker : item)))
+  }
+
+  async function handleCompleteTask(markerId: string) {
+    const marker = markers.find((item) => item.id === markerId)
+    if (
+      !marker ||
+      marker.completedAt ||
+      !marker.participantIds?.includes(LOCAL_MEMBER_ID)
+    ) {
+      return
+    }
+
+    const updatedMarker: TrailMarker = {
+      ...marker,
+      completedAt: Date.now(),
+    }
+    await updateMarker(updatedMarker)
+    setMarkers((prev) => prev.map((item) => (item.id === markerId ? updatedMarker : item)))
+    setSelectedMarkerId((current) => (current === markerId ? null : current))
+  }
+
+  const activeMarkers = markers.filter((marker) => !marker.completedAt)
+  const selectedMarker = activeMarkers.find((marker) => marker.id === selectedMarkerId)
+
   if (view === 'home') {
     return (
       <div className="app-frame">
-        <LandingPage onOpenMap={() => setView('map')} />
+        <LandingPage onOpenMap={() => setView('map')} onOpenCrew={() => setView('crew')} />
       </div>
+    )
+  }
+
+  if (view === 'crew') {
+    return (
+      <CrewPanel
+        loading={loading}
+        markers={markers}
+        tracks={tracks}
+        onAcceptTask={handleAcceptTask}
+        onCompleteTask={handleCompleteTask}
+        onGoHome={() => setView('home')}
+        onOpenMap={() => setView('map')}
+      />
     )
   }
 
@@ -215,8 +315,15 @@ export default function App() {
       <MapErrorBoundary>
         <MapView
           tracks={tracks}
+          markers={activeMarkers}
           gps={gps}
           followGps={followGps}
+          selectedTrackId={selection?.id}
+          selectingLocation={placementMode === 'selecting'}
+          onSelectLocation={
+            placementMode === 'selecting' ? setLocationFromCoords : undefined
+          }
+          onOpenMarkerDetail={setSelectedMarkerId}
           onFollowChange={handleFollowChange}
           onMapReady={handleMapReady}
           focusTrackId={focusTrackId}
@@ -237,11 +344,15 @@ export default function App() {
         followGps={followGps}
         gps={gps}
         tracks={tracks}
-        markers={markers}
+        markers={activeMarkers}
         selection={selection}
         placementMode={placementMode}
         pendingLocation={pendingLocation}
-        onSelect={setSelection}
+        onSelect={(nextSelection) => {
+          setSelection(nextSelection)
+          resetPlacement()
+          setGpsError(null)
+        }}
         onImportGpx={importGpx}
         onLocate={handleLocate}
         onGoHome={() => setView('home')}
@@ -254,6 +365,15 @@ export default function App() {
         onCancelPlacement={resetPlacement}
         onSaveMarker={handleSaveMarker}
       />
+
+      {selectedMarker && (
+        <MarkerDetailSheet
+          marker={selectedMarker}
+          tracks={tracks}
+          onClose={() => setSelectedMarkerId(null)}
+          onDelete={handleDeleteMarker}
+        />
+      )}
 
       {busy && (
         <div className="toast" role="status">

@@ -4,6 +4,7 @@ import { MARKER_KINDS } from '../lib/markers'
 import type { GpsPosition, TrailMarker, TrailMarkerKind } from '../types'
 
 type TrailMarkerFormProps = {
+  selectedTrailName: string | null
   placementMode: 'idle' | 'selecting'
   pendingLocation: { lng: number; lat: number } | null
   gps: GpsPosition | null
@@ -15,6 +16,7 @@ type TrailMarkerFormProps = {
 }
 
 export function TrailMarkerForm({
+  selectedTrailName,
   placementMode,
   pendingLocation,
   gps,
@@ -50,11 +52,13 @@ export function TrailMarkerForm({
   return (
     <div className="marker-form">
       <div className="marker-form-header">
-        <h3 className="marker-form-title">Mark trail section</h3>
+        <h3 className="marker-form-title">Add marker</h3>
         <p className="marker-form-hint">
-          {selecting
+          {!selectedTrailName
+            ? 'Select a trail below before adding a marker.'
+            : selecting
             ? 'Tap on the trail where you want to place a marker.'
-            : 'Choose a location, then pick what you want to mark.'}
+            : `Adding to ${selectedTrailName}. Choose a location to continue.`}
         </p>
       </div>
 
@@ -63,6 +67,7 @@ export function TrailMarkerForm({
           <button
             type="button"
             className={`btn btn-ghost ${selecting ? 'active-locate' : ''}`}
+            disabled={!selectedTrailName}
             onClick={onStartSelectLocation}
           >
             Select location
@@ -70,7 +75,7 @@ export function TrailMarkerForm({
           <button
             type="button"
             className="btn btn-ghost"
-            disabled={!gps}
+            disabled={!gps || !selectedTrailName}
             onClick={onMarkCurrentLocation}
           >
             Mark current location

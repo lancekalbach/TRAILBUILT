@@ -17,6 +17,17 @@ function haversineMeters(a: [number, number], b: [number, number]) {
   return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)))
 }
 
+/** Total distance across every line segment in a trail. */
+export function trackLengthMeters(track: TrailTrack): number {
+  let total = 0
+  for (const line of track.lines) {
+    for (let i = 0; i < line.coordinates.length - 1; i++) {
+      total += haversineMeters(line.coordinates[i]!, line.coordinates[i + 1]!)
+    }
+  }
+  return total
+}
+
 function nearestOnSegment(
   point: [number, number],
   a: [number, number],
