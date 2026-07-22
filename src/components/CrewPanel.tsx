@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { AppNav } from './AppNav'
 import { markerKindMeta } from '../lib/markerKinds'
 import type { TrailMarker, TrailTrack } from '../types'
 
@@ -8,10 +9,14 @@ type CrewPanelProps = {
   loading: boolean
   markers: TrailMarker[]
   tracks: TrailTrack[]
+  focusMarkerId?: string | null
   onAcceptTask: (markerId: string) => Promise<void>
   onCompleteTask: (markerId: string) => Promise<void>
+  onViewOnMap: (markerId: string) => void
   onGoHome: () => void
   onOpenMap: () => void
+  onOpenTrailStatus: () => void
+  onFocusHandled?: () => void
 }
 
 type CrewTab = 'feed' | 'tasks' | 'completed'
@@ -38,15 +43,20 @@ export function CrewPanel({
   loading,
   markers,
   tracks,
+  focusMarkerId = null,
   onAcceptTask,
   onCompleteTask,
+  onViewOnMap,
   onGoHome,
   onOpenMap,
+  onOpenTrailStatus,
+  onFocusHandled,
 }: CrewPanelProps) {
   const [tab, setTab] = useState<CrewTab>('feed')
   const [joiningId, setJoiningId] = useState<string | null>(null)
   const [completingId, setCompletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [highlightedId, setHighlightedId] = useState<string | null>(null)
 
   const trackNames = useMemo(
     () => new Map(tracks.map((track) => [track.id, track.name])),
@@ -65,6 +75,39 @@ export function CrewPanel({
     .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0))
   const visibleMarkers =
     tab === 'feed' ? activeHazards : tab === 'tasks' ? myTasks : completedTasks
+
+  useEffect(() => {
+    if (!focusMarkerId) return
+    const marker = markers.find((item) => item.id === focusMarkerId)
+    if (!marker) {
+      onFocusHandled?.()
+      return
+    }
+
+    if (marker.completedAt) {
+      setTab('completed')
+    } else if (marker.participantIds?.includes(LOCAL_MEMBER_ID)) {
+      setTab('tasks')
+    } else {
+      setTab('feed')
+    }
+
+    setHighlightedId(focusMarkerId)
+    onFocusHandled?.()
+  }, [focusMarkerId, markers, onFocusHandled])
+
+  useEffect(() => {
+    if (!highlightedId) return
+    const frame = requestAnimationFrame(() => {
+      const el = document.getElementById(`crew-card-${highlightedId}`)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+    const timeout = window.setTimeout(() => setHighlightedId(null), 2400)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.clearTimeout(timeout)
+    }
+  }, [highlightedId, tab, visibleMarkers.length])
 
   async function acceptTask(markerId: string) {
     setJoiningId(markerId)
@@ -93,12 +136,14 @@ export function CrewPanel({
   return (
     <main className="crew-page">
       <header className="crew-header">
-        <button type="button" className="crew-brand" onClick={onGoHome}>
-          TrailBuilt
-        </button>
-        <button type="button" className="crew-map-link" onClick={onOpenMap}>
-          Open map
-        </button>
+        <AppNav
+          current="crew"
+          brandClassName="crew-brand"
+          onGoHome={onGoHome}
+          onOpenMap={onOpenMap}
+          onOpenCrew={() => undefined}
+          onOpenTrailStatus={onOpenTrailStatus}
+        />
       </header>
 
       <div className="crew-shell">
@@ -131,7 +176,7 @@ export function CrewPanel({
             aria-pressed={tab === 'completed'}
             onClick={() => setTab('completed')}
           >
-            Completed tasks
+            Completed
             <span>{completedTasks.length}</span>
           </button>
         </nav>
@@ -188,7 +233,17 @@ export function CrewPanel({
               const trackName = marker.trackId ? trackNames.get(marker.trackId) : undefined
 
               return (
-                <article className={completed ? 'crew-card is-completed' : 'crew-card'} key={marker.id}>
+                <article
+                  className={[
+                    'crew-card',
+                    completed ? 'is-completed' : '',
+                    highlightedId === marker.id ? 'is-focused' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  id={`crew-card-${marker.id}`}
+                  key={marker.id}
+                >
                   <div className="crew-card-mark" aria-hidden="true">
                     {completed ? '✓' : '!'}
                   </div>
@@ -211,29 +266,38 @@ export function CrewPanel({
                           ? 'No crew assigned'
                           : `${participantCount} crew member${participantCount === 1 ? '' : 's'} joined`}
                       </p>
-                      {completed ? (
-                        <button type="button" className="crew-task-button is-completed" disabled>
-                          Completed
-                        </button>
-                      ) : tab === 'tasks' && joined ? (
+                      <div className="crew-card-actions">
                         <button
                           type="button"
-                          className="crew-task-button is-complete-action"
-                          disabled={completingId === marker.id}
-                          onClick={() => void completeTask(marker.id)}
+                          className="crew-map-button"
+                          onClick={() => onViewOnMap(marker.id)}
                         >
-                          {completingId === marker.id ? 'Completing…' : 'Mark completed'}
+                          View on map
                         </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className={joined ? 'crew-task-button is-joined' : 'crew-task-button'}
-                          disabled={joined || joiningId === marker.id}
-                          onClick={() => void acceptTask(marker.id)}
-                        >
-                          {joiningId === marker.id ? 'Joining…' : joined ? 'Joined' : 'Accept task'}
-                        </button>
-                      )}
+                        {completed ? (
+                          <button type="button" className="crew-task-button is-completed" disabled>
+                            Completed
+                          </button>
+                        ) : tab === 'tasks' && joined ? (
+                          <button
+                            type="button"
+                            className="crew-task-button is-complete-action"
+                            disabled={completingId === marker.id}
+                            onClick={() => void completeTask(marker.id)}
+                          >
+                            {completingId === marker.id ? 'Completing…' : 'Mark completed'}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className={joined ? 'crew-task-button is-joined' : 'crew-task-button'}
+                            disabled={joined || joiningId === marker.id}
+                            onClick={() => void acceptTask(marker.id)}
+                          >
+                            {joiningId === marker.id ? 'Joining…' : joined ? 'Joined' : 'Accept task'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </article>

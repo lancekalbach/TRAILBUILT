@@ -281,6 +281,8 @@ input {
   min-width: calc(50% - 8px);
   justify-content: center;
   text-align: center;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.8rem;
 }
 
 .map-menu-actions .active-locate {
@@ -331,7 +333,155 @@ input {
 .map-top-row {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.app-nav-menu {
+  position: relative;
+  z-index: 7;
+}
+
+.app-nav-trigger {
+  appearance: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid rgba(242, 239, 230, 0.22);
+  border-radius: 0;
+  background: rgba(12, 12, 12, 0.88);
+  backdrop-filter: blur(18px);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.app-nav-trigger:hover {
+  background: rgba(18, 18, 18, 0.94);
+  border-color: rgba(242, 239, 230, 0.4);
+  color: #fff;
+}
+
+.app-nav-menu.is-open .app-nav-trigger {
+  border-color: rgba(245, 185, 66, 0.4);
+  background: rgba(18, 16, 10, 0.94);
+}
+
+.app-nav-caret {
+  display: flex;
+  color: #9a9a9a;
+  transition: transform 0.22s ease, color 0.2s ease;
+}
+
+.app-nav-menu.is-open .app-nav-caret {
+  transform: rotate(180deg);
+  color: #f5c565;
+}
+
+.app-nav-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 10.5rem;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(242, 239, 230, 0.14);
+  background:
+    linear-gradient(180deg, rgba(22, 22, 22, 0.98) 0%, rgba(10, 10, 10, 0.96) 100%);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    visibility 0.18s ease;
+}
+
+.app-nav-menu.is-open .app-nav-panel {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.app-nav-item {
+  appearance: none;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.app-nav-item:last-child {
+  border-bottom: 0;
+}
+
+.app-nav-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.app-nav-item.is-current {
+  background: rgba(245, 185, 66, 0.1);
+  color: #f5c565;
+}
+
+.app-nav-item.is-current:hover {
+  background: rgba(245, 185, 66, 0.16);
+  color: #f8d48a;
+}
+
+.map-mobile-header {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  left: max(16px, env(safe-area-inset-left));
+  right: max(16px, env(safe-area-inset-right));
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.map-mobile-header > * {
+  pointer-events: auto;
+}
+
+.map-mobile-header .map-brand {
+  min-width: 0;
+  font-size: clamp(1.1rem, 5vw, 1.45rem);
+}
+
+.map-brand:focus-visible,
+.app-nav-trigger:focus-visible,
+.app-nav-item:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 3px;
 }
 
 .map-brand {
@@ -353,13 +503,6 @@ input {
 
 .map-brand:hover {
   color: #fff;
-}
-
-.map-brand-mobile {
-  position: absolute;
-  top: max(16px, env(safe-area-inset-top));
-  left: max(16px, env(safe-area-inset-left));
-  z-index: 6;
 }
 
 .map-dropdown-trigger {
@@ -504,12 +647,12 @@ input {
 
 .map-dropdown-panel .map-menu-actions .btn {
   border-radius: 0;
-  padding: 0.7rem 1rem;
+  padding: 0.45rem 0.75rem;
   font-family: var(--font-display);
   font-weight: 650;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  font-size: 0.92rem;
+  font-size: 0.78rem;
 }
 
 .map-dropdown-panel .map-menu-actions .btn-primary {
@@ -827,7 +970,8 @@ input {
   flex-direction: column;
   justify-content: flex-end;
   padding: max(24px, env(safe-area-inset-top)) 24px max(40px, env(safe-area-inset-bottom));
-  max-width: 28rem;
+  width: 100%;
+  max-width: min(36rem, calc(100% - 48px));
 }
 
 .landing-kicker {
@@ -863,20 +1007,20 @@ input {
 
 .landing-actions {
   display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
 }
 
 .landing-cta {
   position: relative;
-  flex: 0 1 auto;
-  align-self: flex-start;
+  width: 100%;
+  align-self: stretch;
   appearance: none;
   border: none;
   border-radius: 0;
-  padding: 0.9rem 1.95rem 0.9rem 1.35rem;
-  min-width: 0;
+  padding: 1rem 2rem 1rem 1.35rem;
   overflow: hidden;
   isolation: isolate;
   cursor: pointer;
@@ -886,6 +1030,7 @@ input {
   font-size: 1.05rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  text-align: left;
   clip-path: polygon(0 0, 78% 0, 100% 28%, 100% 100%, 0 100%);
   animation: landingFadeUp 0.9s ease 0.24s both;
   filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.4));
@@ -1127,6 +1272,11 @@ input {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .app-nav-panel,
+  .app-nav-caret {
+    transition: none;
+  }
+
   .topo-drift,
   .topo-line,
   .topo-elev,
@@ -1330,8 +1480,46 @@ input {
   line-height: 1.15;
 }
 
+.trail-popup-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.trail-popup-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 0;
+  padding: 0.24rem 0.6rem;
+  border-radius: 999px;
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  color: #0a0a0a;
+}
+
+.trail-popup-status--open {
+  background: #22c55e;
+}
+
+.trail-popup-status--partial {
+  background: #eab308;
+}
+
+.trail-popup-status--closed {
+  background: #ef4444;
+  color: #fff;
+}
+
 .trail-popup-skill {
-  margin: 4px 0 0;
+  margin: 0;
   color: var(--muted);
   font-size: 0.82rem;
   letter-spacing: 0.01em;
@@ -1558,6 +1746,22 @@ input {
   text-align: center;
 }
 
+.marker-detail-crew {
+  border-color: rgba(245, 185, 66, 0.35);
+  background: rgba(245, 185, 66, 0.1);
+  color: #f5c565;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.marker-detail-crew:hover {
+  border-color: rgba(245, 185, 66, 0.55);
+  background: rgba(245, 185, 66, 0.16);
+  color: #f8d48a;
+}
+
 @media (min-width: 900px) {
   .marker-detail {
     align-items: center;
@@ -1570,19 +1774,22 @@ input {
 
 .placement-hint {
   position: absolute;
-  top: max(16px, env(safe-area-inset-top));
+  top: calc(max(16px, env(safe-area-inset-top)) + 56px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 4;
-  padding: 10px 16px;
+  padding: 5px 14px;
   border-radius: 999px;
-  background: rgba(12, 12, 12, 0.92);
-  border: 1px solid rgba(245, 158, 11, 0.45);
+  background: rgba(12, 12, 12, 0.88);
+  border: 1px solid rgba(245, 158, 11, 0.35);
   color: #fcd34d;
-  font-size: 0.88rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
   pointer-events: none;
+  max-width: min(92vw, 380px);
+  text-align: center;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
@@ -1759,7 +1966,7 @@ input {
   z-index: 5;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   min-height: 64px;
   padding: max(12px, env(safe-area-inset-top)) 20px 12px;
   border-bottom: 1px solid var(--border);
@@ -1767,14 +1974,14 @@ input {
   backdrop-filter: blur(18px);
 }
 
-.crew-brand,
-.crew-map-link {
-  appearance: none;
-  border: 0;
-  cursor: pointer;
+.crew-header .app-nav-trigger {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .crew-brand {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
   padding: 0;
   background: transparent;
   color: var(--text);
@@ -1783,22 +1990,13 @@ input {
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-}
-
-.crew-map-link {
-  padding: 0.65rem 0.9rem;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text);
-  font-size: 0.76rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  text-shadow: none;
 }
 
 .crew-brand:focus-visible,
-.crew-map-link:focus-visible,
+.app-nav-trigger:focus-visible,
 .crew-tabs button:focus-visible,
+.crew-map-button:focus-visible,
 .crew-task-button:focus-visible,
 .crew-empty-action:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.6);
@@ -1834,29 +2032,32 @@ input {
 }
 
 .crew-tabs {
-  display: flex;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
   margin: 20px 0 16px;
   border-bottom: 1px solid var(--border);
-  overflow-x: auto;
 }
 
 .crew-tabs button {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
   appearance: none;
   border: 0;
-  padding: 13px 12px;
+  padding: 12px 8px;
   background: transparent;
   color: #777;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.74rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  white-space: nowrap;
+  text-align: center;
+  line-height: 1.2;
 }
 
 .crew-tabs button::after {
@@ -1878,13 +2079,14 @@ input {
 }
 
 .crew-tabs button span {
-  min-width: 1.35rem;
-  padding: 2px 5px;
+  flex-shrink: 0;
+  min-width: 1.2rem;
+  padding: 2px 4px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   color: #aaa;
   font-family: var(--font-mono);
-  font-size: 0.66rem;
+  font-size: 0.62rem;
   text-align: center;
 }
 
@@ -1919,6 +2121,12 @@ input {
 
 .crew-card.is-completed {
   border-color: rgba(111, 190, 136, 0.2);
+}
+
+.crew-card.is-focused {
+  border-color: rgba(245, 185, 66, 0.55);
+  background: rgba(245, 185, 66, 0.08);
+  box-shadow: 0 0 0 1px rgba(245, 185, 66, 0.25);
 }
 
 .crew-card.is-completed .crew-card-mark {
@@ -1997,6 +2205,31 @@ input {
   margin: 0;
   color: #8d8d8d;
   font-size: 0.78rem;
+}
+
+.crew-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.crew-map-button {
+  appearance: none;
+  border: 1px solid var(--border);
+  padding: 0.72rem 1rem;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.crew-map-button:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.24);
 }
 
 .crew-task-button,
@@ -2104,12 +2337,215 @@ input {
 }
 
 @media (max-width: 440px) {
+  .crew-tabs button {
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 4px;
+    font-size: 0.58rem;
+    letter-spacing: 0.03em;
+  }
+
+  .crew-tabs button span {
+    min-width: 1rem;
+    padding: 1px 4px;
+    font-size: 0.56rem;
+  }
+
   .crew-card-footer {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .crew-task-button {
+  .crew-card-actions {
     width: 100%;
+  }
+
+  .crew-map-button,
+  .crew-task-button {
+    flex: 1;
+    min-width: calc(50% - 4px);
+  }
+}
+
+/* —— Trail Status —— */
+
+.trail-status-page {
+  height: 100%;
+  height: 100dvh;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 85% 5%, rgba(255, 255, 255, 0.08), transparent 26rem),
+    #0a0a0a;
+  color: var(--text);
+}
+
+.trail-status-shell {
+  max-width: 720px;
+}
+
+.trail-status-list {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+
+.trail-status-row {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 16px 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.trail-status-diff {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--muted);
+}
+
+.trail-status-diff-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex-shrink: 0;
+  width: 1.6rem;
+}
+
+.trail-status-diff-shape {
+  display: block;
+  width: 0.72rem;
+  height: 0.72rem;
+  background: currentColor;
+}
+
+.trail-status-diff--green {
+  color: #22c55e;
+}
+
+.trail-status-diff--green .trail-status-diff-shape {
+  border-radius: 50%;
+}
+
+.trail-status-diff--blue {
+  color: #3b82f6;
+}
+
+.trail-status-diff--blue .trail-status-diff-shape {
+  border-radius: 2px;
+}
+
+.trail-status-diff--black {
+  color: #f2efe6;
+}
+
+.trail-status-diff--black .trail-status-diff-shape {
+  width: 0.78rem;
+  height: 0.78rem;
+  background: transparent;
+  border: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.trail-status-diff--double-black {
+  color: #f2efe6;
+}
+
+.trail-status-diff--double-black .trail-status-diff-shape {
+  width: 0.62rem;
+  height: 0.62rem;
+  background: transparent;
+  border: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.trail-status-diff--pro-line {
+  color: #ea580c;
+}
+
+.trail-status-diff--pro-line .trail-status-diff-shape {
+  width: 0.62rem;
+  height: 0.62rem;
+  background: currentColor;
+  transform: rotate(45deg);
+}
+
+.trail-status-diff-label {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.trail-status-name {
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 4.5vw, 1.85rem);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.trail-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 4.75rem;
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  white-space: nowrap;
+  color: #0a0a0a;
+}
+
+.trail-status-badge--open {
+  background: #22c55e;
+}
+
+.trail-status-badge--partial {
+  background: #eab308;
+}
+
+.trail-status-badge--closed {
+  background: #ef4444;
+  color: #fff;
+}
+
+@media (max-width: 640px) {
+  .trail-status-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'diff status'
+      'name status';
+    gap: 8px 12px;
+    padding: 14px 0;
+  }
+
+  .trail-status-diff {
+    grid-area: diff;
+  }
+
+  .trail-status-name {
+    grid-area: name;
+  }
+
+  .trail-status-badge {
+    grid-area: status;
+    align-self: center;
+  }
+
+  .trail-status-diff-label {
+    font-size: 0.62rem;
   }
 }

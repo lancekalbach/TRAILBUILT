@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { AppNav } from './AppNav'
 import { FileUploader } from './FileUploader'
 import { TrailLibrary } from './TrailLibrary'
 import { TrailMarkerForm } from './TrailMarkerForm'
@@ -27,6 +28,9 @@ type MapMenuProps = {
   onImportGpx: (file: File) => void
   onLocate: () => void
   onGoHome: () => void
+  onOpenMap: () => void
+  onOpenCrew: () => void
+  onOpenTrailStatus: () => void
   onFocusTrack: (id: string) => void
   onStartSelectLocation: () => void
   onMarkCurrentLocation: () => void
@@ -69,9 +73,26 @@ function MenuBody({
   onMarkCurrentLocation,
   onCancelPlacement,
   onSaveMarker,
-}: Omit<MapMenuProps, 'open' | 'onGoHome'>) {
+}: Omit<MapMenuProps, 'open' | 'onGoHome' | 'onOpenMap' | 'onOpenCrew' | 'onOpenTrailStatus'>) {
   return (
     <>
+      <TrailMarkerForm
+        selectedTrailName={tracks.find((track) => track.id === selection?.id)?.name ?? null}
+        placementMode={placementMode}
+        pendingLocation={pendingLocation}
+        gps={gps}
+        onStartSelectLocation={onStartSelectLocation}
+        onMarkCurrentLocation={onMarkCurrentLocation}
+        onCancelPlacement={onCancelPlacement}
+        onSaveMarker={(kind, note) => {
+          onSaveMarker(kind, note)
+          onOpenChange(false)
+        }}
+        recentMarkers={markers}
+      />
+
+      <div className="map-menu-divider" />
+
       <div className="map-menu-actions">
         <FileUploader
           label="Import GPX"
@@ -90,32 +111,12 @@ function MenuBody({
 
       <div className="map-menu-divider" />
 
-      <TrailMarkerForm
-        selectedTrailName={tracks.find((track) => track.id === selection?.id)?.name ?? null}
-        placementMode={placementMode}
-        pendingLocation={pendingLocation}
-        gps={gps}
-        onStartSelectLocation={onStartSelectLocation}
-        onMarkCurrentLocation={onMarkCurrentLocation}
-        onCancelPlacement={onCancelPlacement}
-        onSaveMarker={(kind, note) => {
-          onSaveMarker(kind, note)
-          onOpenChange(false)
-        }}
-        recentMarkers={markers}
+      <TrailLibrary
+        tracks={tracks}
+        selection={selection}
+        onSelect={onSelect}
+        onFocusTrack={onFocusTrack}
       />
-
-      <div className="map-menu-divider" />
-
-      <div className="map-menu-section">
-        <h3 className="map-menu-section-title">Select a trail</h3>
-        <TrailLibrary
-          tracks={tracks}
-          selection={selection}
-          onSelect={onSelect}
-          onFocusTrack={onFocusTrack}
-        />
-      </div>
     </>
   )
 }
@@ -124,12 +125,18 @@ function MenuShell({
   open,
   onOpenChange,
   onGoHome,
+  onOpenMap,
+  onOpenCrew,
+  onOpenTrailStatus,
   desktop,
   children,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   onGoHome: () => void
+  onOpenMap: () => void
+  onOpenCrew: () => void
+  onOpenTrailStatus: () => void
   desktop: boolean
   children: ReactNode
 }) {
@@ -146,16 +153,25 @@ function MenuShell({
     return (
       <div className={`map-dropdown ${open ? 'is-open' : ''}`}>
         <div className="map-top-row">
-          <button
-            type="button"
-            className="map-brand"
-            onClick={() => {
+          <AppNav
+            current="map"
+            onGoHome={() => {
               onGoHome()
               onOpenChange(false)
             }}
-          >
-            TrailBuilt
-          </button>
+            onOpenMap={() => {
+              onOpenMap()
+              onOpenChange(false)
+            }}
+            onOpenCrew={() => {
+              onOpenCrew()
+              onOpenChange(false)
+            }}
+            onOpenTrailStatus={() => {
+              onOpenTrailStatus()
+              onOpenChange(false)
+            }}
+          />
           <button
             type="button"
             className="map-dropdown-trigger"
@@ -207,16 +223,27 @@ function MenuShell({
 
   return (
     <>
-      <button
-        type="button"
-        className="map-brand map-brand-mobile"
-        onClick={() => {
-          onGoHome()
-          onOpenChange(false)
-        }}
-      >
-        TrailBuilt
-      </button>
+      <div className="map-mobile-header">
+        <AppNav
+          current="map"
+          onGoHome={() => {
+            onGoHome()
+            onOpenChange(false)
+          }}
+          onOpenMap={() => {
+            onOpenMap()
+            onOpenChange(false)
+          }}
+          onOpenCrew={() => {
+            onOpenCrew()
+            onOpenChange(false)
+          }}
+          onOpenTrailStatus={() => {
+            onOpenTrailStatus()
+            onOpenChange(false)
+          }}
+        />
+      </div>
 
       <div className={`map-drawer ${open ? 'is-open' : ''}`}>
         {open && (
@@ -267,10 +294,19 @@ function MenuShell({
 
 export function MapMenu(props: MapMenuProps) {
   const isDesktop = useIsDesktop()
-  const { open, onOpenChange, onGoHome, ...bodyProps } = props
+  const { open, onOpenChange, onGoHome, onOpenMap, onOpenCrew, onOpenTrailStatus, ...bodyProps } =
+    props
 
   return (
-    <MenuShell open={open} onOpenChange={onOpenChange} onGoHome={onGoHome} desktop={isDesktop}>
+    <MenuShell
+      open={open}
+      onOpenChange={onOpenChange}
+      onGoHome={onGoHome}
+      onOpenMap={onOpenMap}
+      onOpenCrew={onOpenCrew}
+      onOpenTrailStatus={onOpenTrailStatus}
+      desktop={isDesktop}
+    >
       <MenuBody {...bodyProps} onOpenChange={onOpenChange} />
     </MenuShell>
   )

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import { CrewPanel } from './components/CrewPanel'
 import { LandingPage } from './components/LandingPage'
@@ -6,6 +6,7 @@ import { MapErrorBoundary } from './components/MapErrorBoundary'
 import { MapMenu } from './components/MapMenu'
 import { MapView } from './components/MapView'
 import { MarkerDetailSheet } from './components/MarkerDetailSheet'
+import { TrailStatusPage } from './components/TrailStatusPage'
 import { ensurePbrSeedTracks, pbrNetworkBounds } from './data/pbr/seed'
 import { nextTrailColor, parseGpx } from './lib/gpx'
 import { watchGps } from './lib/geolocation'
@@ -28,7 +29,7 @@ import type {
   TrailTrack,
 } from './types'
 
-type AppView = 'home' | 'map' | 'crew'
+type AppView = 'home' | 'map' | 'crew' | 'status'
 
 const LOCAL_MEMBER_ID = 'you'
 
@@ -45,6 +46,7 @@ export default function App() {
   const [followGps, setFollowGps] = useState(false)
   const [map, setMap] = useState<MapLibreMap | null>(null)
   const [focusTrackId, setFocusTrackId] = useState<string | null>(null)
+  const [focusMarkerId, setFocusMarkerId] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -52,6 +54,7 @@ export default function App() {
   const [placementMode, setPlacementMode] = useState<MarkerPlacementMode>('idle')
   const [pendingLocation, setPendingLocation] = useState<{ lng: number; lat: number } | null>(null)
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null)
+  const [crewFocusMarkerId, setCrewFocusMarkerId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -98,12 +101,12 @@ export default function App() {
 
   const didInitialCamera = useRef(false)
   useEffect(() => {
-    if (didInitialCamera.current || !map || loading || tracks.length === 0) return
+    if (didInitialCamera.current || !map || loading || tracks.length === 0 || focusMarkerId) return
     const bounds = pbrNetworkBounds(tracks)
     if (!bounds) return
     didInitialCamera.current = true
     map.fitBounds(bounds, { padding: 56, maxZoom: 14, animate: false })
-  }, [map, tracks, loading])
+  }, [map, tracks, loading, focusMarkerId])
 
   useEffect(() => {
     if (view !== 'map' || !map) return
@@ -117,6 +120,7 @@ export default function App() {
       setPlacementMode('idle')
       setPendingLocation(null)
       setSelectedMarkerId(null)
+      setFocusMarkerId(null)
       setMap(null)
       setFollowGps(false)
       didInitialCamera.current = false
@@ -285,6 +289,31 @@ export default function App() {
     setSelectedMarkerId((current) => (current === markerId ? null : current))
   }
 
+  function handleViewOnMap(markerId: string) {
+    const marker = markers.find((item) => item.id === markerId)
+    if (!marker) return
+
+    setFollowGps(false)
+    setFocusMarkerId(markerId)
+    if (!marker.completedAt) {
+      setSelectedMarkerId(markerId)
+      if (marker.trackId) {
+        setSelection({ kind: 'track', id: marker.trackId })
+      }
+    }
+    setView('map')
+  }
+
+  const handleCrewFocusHandled = useCallback(() => {
+    setCrewFocusMarkerId(null)
+  }, [])
+
+  const focusMarkerLocation = useMemo(() => {
+    if (!focusMarkerId) return null
+    const marker = markers.find((item) => item.id === focusMarkerId)
+    return marker ? { lng: marker.lng, lat: marker.lat } : null
+  }, [focusMarkerId, markers])
+
   const activeMarkers = markers.filter((marker) => !marker.completedAt)
   const selectedMarker = activeMarkers.find((marker) => marker.id === selectedMarkerId)
 
@@ -302,10 +331,25 @@ export default function App() {
         loading={loading}
         markers={markers}
         tracks={tracks}
+        focusMarkerId={crewFocusMarkerId}
         onAcceptTask={handleAcceptTask}
         onCompleteTask={handleCompleteTask}
+        onViewOnMap={handleViewOnMap}
         onGoHome={() => setView('home')}
         onOpenMap={() => setView('map')}
+        onOpenTrailStatus={() => setView('status')}
+        onFocusHandled={handleCrewFocusHandled}
+      />
+    )
+  }
+
+  if (view === 'status') {
+    return (
+      <TrailStatusPage
+        onGoHome={() => setView('home')}
+        onOpenMap={() => setView('map')}
+        onOpenCrew={() => setView('crew')}
+        onOpenTrailStatus={() => undefined}
       />
     )
   }
@@ -327,6 +371,7 @@ export default function App() {
           onFollowChange={handleFollowChange}
           onMapReady={handleMapReady}
           focusTrackId={focusTrackId}
+          focusMarkerLocation={focusMarkerLocation}
         />
       </MapErrorBoundary>
 
@@ -356,6 +401,9 @@ export default function App() {
         onImportGpx={importGpx}
         onLocate={handleLocate}
         onGoHome={() => setView('home')}
+        onOpenMap={() => setView('map')}
+        onOpenCrew={() => setView('crew')}
+        onOpenTrailStatus={() => setView('status')}
         onFocusTrack={(id) => {
           setFocusTrackId(null)
           requestAnimationFrame(() => setFocusTrackId(id))
@@ -372,6 +420,11 @@ export default function App() {
           tracks={tracks}
           onClose={() => setSelectedMarkerId(null)}
           onDelete={handleDeleteMarker}
+          onViewInCrew={(id) => {
+            setSelectedMarkerId(null)
+            setCrewFocusMarkerId(id)
+            setView('crew')
+          }}
         />
       )}
 

@@ -53,20 +53,13 @@ export function TrailMarkerForm({
     <div className="marker-form">
       <div className="marker-form-header">
         <h3 className="marker-form-title">Add marker</h3>
-        <p className="marker-form-hint">
-          {!selectedTrailName
-            ? 'Select a trail below before adding a marker.'
-            : selecting
-            ? 'Tap on the trail where you want to place a marker.'
-            : `Adding to ${selectedTrailName}. Choose a location to continue.`}
-        </p>
       </div>
 
       {!hasLocation && (
         <div className="marker-location-actions">
           <button
             type="button"
-            className={`btn btn-ghost ${selecting ? 'active-locate' : ''}`}
+            className={`btn btn-primary ${selecting ? 'active-locate' : ''}`}
             disabled={!selectedTrailName}
             onClick={onStartSelectLocation}
           >
@@ -74,7 +67,7 @@ export function TrailMarkerForm({
           </button>
           <button
             type="button"
-            className="btn btn-ghost"
+            className="btn btn-primary"
             disabled={!gps || !selectedTrailName}
             onClick={onMarkCurrentLocation}
           >

@@ -6,6 +6,11 @@ import type { GpsPosition, TrailMarker, TrailTrack } from '../types'
 import { trackBounds, tracksToGeoJson } from '../lib/gpx'
 import { markerKindIconSvg, markerKindMeta } from '../lib/markers'
 import { trackLengthMeters } from '../lib/trailGeometry'
+import { flyToLocation } from '../lib/mapCamera'
+import {
+  getTrailOpenStatus,
+  TRAIL_STATUS_LABELS,
+} from '../data/trailStatus'
 import {
   isInsidePbrRegion,
   PBR_CENTER,
@@ -171,11 +176,23 @@ function showTrailPopup(map: MapLibreMap, track: TrailTrack, lng: number, lat: n
   name.className = 'trail-popup-name'
   name.textContent = track.name
 
+  const meta = document.createElement('div')
+  meta.className = 'trail-popup-meta'
+
   const length = document.createElement('p')
   length.className = 'trail-popup-skill'
   length.textContent = formatTrailLength(track)
+  meta.append(length)
 
-  body.append(name, length)
+  const status = getTrailOpenStatus(track.id)
+  if (status) {
+    const badge = document.createElement('span')
+    badge.className = `trail-popup-status trail-popup-status--${status}`
+    badge.textContent = TRAIL_STATUS_LABELS[status]
+    meta.append(badge)
+  }
+
+  body.append(name, meta)
 
   return new maplibregl.Popup({
     className: 'trail-popup',
@@ -242,6 +259,7 @@ type MapViewProps = {
   onFollowChange?: (follow: boolean) => void
   onMapReady?: (map: MapLibreMap | null) => void
   focusTrackId?: string | null
+  focusMarkerLocation?: { lng: number; lat: number } | null
   className?: string
 }
 
@@ -257,6 +275,7 @@ export function MapView({
   onFollowChange,
   onMapReady,
   focusTrackId,
+  focusMarkerLocation,
   className,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -428,6 +447,12 @@ export function MapView({
       duration: 800,
     })
   }, [focusTrackId, tracks])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !focusMarkerLocation) return
+    flyToLocation(map, focusMarkerLocation.lng, focusMarkerLocation.lat)
+  }, [focusMarkerLocation])
 
   useEffect(() => {
     const map = mapRef.current
