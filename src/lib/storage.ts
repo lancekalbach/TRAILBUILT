@@ -1,9 +1,8 @@
-import type { TrailMarker, TrailTrack } from '../types'
+import type { TrailTrack } from '../types'
 
 const DB_NAME = 'trailbuilt'
 const DB_VERSION = 3
 const TRACKS = 'tracks'
-const MARKERS = 'markers'
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -14,9 +13,6 @@ function openDb(): Promise<IDBDatabase> {
       const db = req.result
       if (!db.objectStoreNames.contains(TRACKS)) {
         db.createObjectStore(TRACKS, { keyPath: 'id' })
-      }
-      if (!db.objectStoreNames.contains(MARKERS)) {
-        db.createObjectStore(MARKERS, { keyPath: 'id' })
       }
     }
   })
@@ -72,23 +68,6 @@ export async function saveTrack(track: TrailTrack): Promise<void> {
 
 export async function deleteTrack(id: string): Promise<void> {
   await remove(TRACKS, id)
-}
-
-export async function loadMarkers(): Promise<TrailMarker[]> {
-  const list = await getAll<TrailMarker>(MARKERS)
-  return list.sort((a, b) => b.createdAt - a.createdAt)
-}
-
-export async function saveMarker(marker: TrailMarker): Promise<void> {
-  await put(MARKERS, marker)
-}
-
-export async function updateMarker(marker: TrailMarker): Promise<void> {
-  await put(MARKERS, marker)
-}
-
-export async function deleteMarker(id: string): Promise<void> {
-  await remove(MARKERS, id)
 }
 
 export function readFileAsText(file: File): Promise<string> {

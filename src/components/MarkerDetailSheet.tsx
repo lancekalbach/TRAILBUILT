@@ -8,7 +8,7 @@ type MarkerDetailSheetProps = {
   tracks: TrailTrack[]
   onClose: () => void
   onDelete: (id: string) => void
-  onViewInCrew: (id: string) => void
+  onViewInCrew?: (id: string) => void
 }
 
 function formatMarkedAt(createdAt: number) {
@@ -90,13 +90,15 @@ export function MarkerDetailSheet({
         </div>
 
         <div className="marker-detail-actions">
-          <button
-            type="button"
-            className="btn marker-detail-crew"
-            onClick={() => onViewInCrew(marker.id)}
-          >
-            View in crew panel
-          </button>
+          {onViewInCrew ? (
+            <button
+              type="button"
+              className="btn marker-detail-crew"
+              onClick={() => onViewInCrew(marker.id)}
+            >
+              View in crew panel
+            </button>
+          ) : null}
           <button
             type="button"
             className="btn btn-danger"

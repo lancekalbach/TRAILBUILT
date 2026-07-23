@@ -31,6 +31,7 @@ type MapMenuProps = {
   onOpenMap: () => void
   onOpenCrew: () => void
   onOpenTrailStatus: () => void
+  showCrew?: boolean
   onFocusTrack: (id: string) => void
   onStartSelectLocation: () => void
   onMarkCurrentLocation: () => void
@@ -73,7 +74,10 @@ function MenuBody({
   onMarkCurrentLocation,
   onCancelPlacement,
   onSaveMarker,
-}: Omit<MapMenuProps, 'open' | 'onGoHome' | 'onOpenMap' | 'onOpenCrew' | 'onOpenTrailStatus'>) {
+}: Omit<
+  MapMenuProps,
+  'open' | 'onGoHome' | 'onOpenMap' | 'onOpenCrew' | 'onOpenTrailStatus' | 'showCrew'
+>) {
   return (
     <>
       <TrailMarkerForm
@@ -128,6 +132,7 @@ function MenuShell({
   onOpenMap,
   onOpenCrew,
   onOpenTrailStatus,
+  showCrew = false,
   desktop,
   children,
 }: {
@@ -137,6 +142,7 @@ function MenuShell({
   onOpenMap: () => void
   onOpenCrew: () => void
   onOpenTrailStatus: () => void
+  showCrew?: boolean
   desktop: boolean
   children: ReactNode
 }) {
@@ -155,6 +161,7 @@ function MenuShell({
         <div className="map-top-row">
           <AppNav
             current="map"
+            showCrew={showCrew}
             onGoHome={() => {
               onGoHome()
               onOpenChange(false)
@@ -226,6 +233,7 @@ function MenuShell({
       <div className="map-mobile-header">
         <AppNav
           current="map"
+          showCrew={showCrew}
           onGoHome={() => {
             onGoHome()
             onOpenChange(false)
@@ -294,8 +302,16 @@ function MenuShell({
 
 export function MapMenu(props: MapMenuProps) {
   const isDesktop = useIsDesktop()
-  const { open, onOpenChange, onGoHome, onOpenMap, onOpenCrew, onOpenTrailStatus, ...bodyProps } =
-    props
+  const {
+    open,
+    onOpenChange,
+    onGoHome,
+    onOpenMap,
+    onOpenCrew,
+    onOpenTrailStatus,
+    showCrew = false,
+    ...bodyProps
+  } = props
 
   return (
     <MenuShell
@@ -305,6 +321,7 @@ export function MapMenu(props: MapMenuProps) {
       onOpenMap={onOpenMap}
       onOpenCrew={onOpenCrew}
       onOpenTrailStatus={onOpenTrailStatus}
+      showCrew={showCrew}
       desktop={isDesktop}
     >
       <MenuBody {...bodyProps} onOpenChange={onOpenChange} />

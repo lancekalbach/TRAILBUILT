@@ -1,8 +1,3 @@
-export type LngLat = {
-  lng: number
-  lat: number
-}
-
 /** One continuous polyline from a GPX track/route segment */
 export type TrailLine = {
   coordinates: Array<[number, number]> // [lng, lat]
@@ -28,6 +23,15 @@ export type GpsPosition = {
 
 export type LibrarySelection = { kind: 'track'; id: string } | null
 
+export type UserRole = 'user' | 'crew' | 'admin'
+
+export type UserProfile = {
+  id: string
+  email: string | null
+  displayName: string | null
+  role: UserRole
+}
+
 export type TrailMarkerKind =
   | 'hazard'
   | 'downed-tree'
@@ -44,6 +48,7 @@ export type TrailMarker = {
   note?: string
   trackId?: string
   createdAt: number
+  createdBy?: string
   participantIds?: string[]
   completedAt?: number
 }

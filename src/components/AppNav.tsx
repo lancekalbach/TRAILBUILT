@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 
-export type AppNavView = 'home' | 'map' | 'crew' | 'status'
+type AppNavView = 'home' | 'map' | 'crew' | 'status'
 
 type AppNavProps = {
   current: AppNavView
@@ -8,6 +8,7 @@ type AppNavProps = {
   onOpenMap: () => void
   onOpenCrew: () => void
   onOpenTrailStatus: () => void
+  showCrew?: boolean
   brandClassName?: string
   className?: string
 }
@@ -18,6 +19,7 @@ export function AppNav({
   onOpenMap,
   onOpenCrew,
   onOpenTrailStatus,
+  showCrew = false,
   brandClassName = 'map-brand',
   className,
 }: AppNavProps) {
@@ -107,14 +109,16 @@ export function AppNav({
           >
             Map
           </button>
-          <button
-            type="button"
-            role="menuitem"
-            className={`app-nav-item ${current === 'crew' ? 'is-current' : ''}`}
-            onClick={() => go(onOpenCrew)}
-          >
-            Crew Panel
-          </button>
+          {showCrew ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={`app-nav-item ${current === 'crew' ? 'is-current' : ''}`}
+              onClick={() => go(onOpenCrew)}
+            >
+              Crew Panel
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"

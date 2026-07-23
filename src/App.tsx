@@ -8,18 +8,25 @@ import { MapView } from './components/MapView'
 import { MarkerDetailSheet } from './components/MarkerDetailSheet'
 import { TrailStatusPage } from './components/TrailStatusPage'
 import { ensurePbrSeedTracks, pbrNetworkBounds } from './data/pbr/seed'
+import { useAuth } from './lib/auth'
 import { nextTrailColor, parseGpx } from './lib/gpx'
 import { watchGps } from './lib/geolocation'
 import { flyToGps } from './lib/mapCamera'
-import { nearestPointOnTrails } from './lib/trailGeometry'
 import {
+  acceptMarkerTask,
+  completeMarkerTask,
   deleteMarker,
   loadMarkers,
-  readFileAsText,
   saveMarker,
-  saveTrack,
-  updateMarker,
-} from './lib/storage'
+  subscribeMarkers,
+} from './lib/markersApi'
+import { readFileAsText, saveTrack } from './lib/storage'
+import {
+  loadTrailStatuses,
+  subscribeTrailStatuses,
+  type TrailStatusMap,
+} from './lib/trailStatusApi'
+import { nearestPointOnTrails } from './lib/trailGeometry'
 import type {
   GpsPosition,
   LibrarySelection,
@@ -31,15 +38,17 @@ import type {
 
 type AppView = 'home' | 'map' | 'crew' | 'status'
 
-const LOCAL_MEMBER_ID = 'you'
-
 /**
  * Landing fully unmounts on map open (keeps topo animations off the GPU).
  */
 export default function App() {
+  const { session, profile, loading: authLoading, isCrew } = useAuth()
+  const memberId = profile?.id ?? null
+
   const [view, setView] = useState<AppView>('home')
   const [tracks, setTracks] = useState<TrailTrack[]>([])
   const [markers, setMarkers] = useState<TrailMarker[]>([])
+  const [trailStatuses, setTrailStatuses] = useState<TrailStatusMap>({})
   const [selection, setSelection] = useState<LibrarySelection>(null)
   const [gps, setGps] = useState<GpsPosition | null>(null)
   const [gpsError, setGpsError] = useState<string | null>(null)
@@ -58,7 +67,33 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([ensurePbrSeedTracks(), loadMarkers()])
+    void loadTrailStatuses()
+      .then((statuses) => {
+        if (!cancelled) setTrailStatuses(statuses)
+      })
+      .catch(() => undefined)
+
+    const unsubscribe = subscribeTrailStatuses((statuses) => {
+      if (!cancelled) setTrailStatuses(statuses)
+    })
+
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+
+    void Promise.all([
+      ensurePbrSeedTracks(),
+      loadMarkers().catch(() => {
+        if (!cancelled) setGpsError('Could not load shared hazards.')
+        return [] as TrailMarker[]
+      }),
+    ])
       .then(([trackList, markerList]) => {
         if (cancelled) return
         setTracks(trackList)
@@ -68,15 +103,25 @@ export default function App() {
         if (initialTrack) setSelection({ kind: 'track', id: initialTrack.id })
       })
       .catch(() => {
-        if (!cancelled) setGpsError('Could not load saved trails.')
+        if (!cancelled) setGpsError('Could not load trails.')
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
+
+    const unsubscribe = subscribeMarkers((markerList) => {
+      if (!cancelled) setMarkers(markerList)
+    })
+
     return () => {
       cancelled = true
+      unsubscribe()
     }
   }, [])
+
+  useEffect(() => {
+    if (!session && view === 'crew') setView('home')
+  }, [session, view])
 
   useEffect(() => {
     if (view !== 'map') return
@@ -126,6 +171,15 @@ export default function App() {
       didInitialCamera.current = false
     }
   }, [view])
+
+  function openCrew() {
+    if (!isCrew) {
+      setGpsError('Crew panel is limited to crew and admin accounts.')
+      setView('home')
+      return
+    }
+    setView('crew')
+  }
 
   function resetPlacement() {
     setPlacementMode('idle')
@@ -229,6 +283,11 @@ export default function App() {
   }
 
   async function handleSaveMarker(kind: TrailMarkerKind, note: string) {
+    if (!memberId) {
+      setGpsError('Sign in to report a hazard.')
+      return
+    }
+
     const selectedTrack = tracks.find((track) => track.id === selection?.id)
     if (!pendingLocation || !selectedTrack) return
 
@@ -241,11 +300,17 @@ export default function App() {
       note: note || undefined,
       trackId: selectedTrack.id,
       createdAt: Date.now(),
+      createdBy: memberId,
+      participantIds: [],
     }
 
-    await saveMarker(marker)
-    setMarkers((prev) => [marker, ...prev])
-    resetPlacement()
+    try {
+      const saved = await saveMarker(marker, memberId)
+      setMarkers((prev) => [saved, ...prev.filter((item) => item.id !== saved.id)])
+      resetPlacement()
+    } catch {
+      setGpsError('Could not save that hazard. Check your connection and try again.')
+    }
   }
 
   async function handleDeleteMarker(id: string) {
@@ -259,33 +324,23 @@ export default function App() {
   }
 
   async function handleAcceptTask(markerId: string) {
+    if (!memberId || !isCrew) return
     const marker = markers.find((item) => item.id === markerId)
-    if (!marker || marker.completedAt || marker.participantIds?.includes(LOCAL_MEMBER_ID)) return
+    if (!marker || marker.completedAt || marker.participantIds?.includes(memberId)) return
 
-    const updatedMarker: TrailMarker = {
-      ...marker,
-      participantIds: [...(marker.participantIds ?? []), LOCAL_MEMBER_ID],
-    }
-    await updateMarker(updatedMarker)
-    setMarkers((prev) => prev.map((item) => (item.id === markerId ? updatedMarker : item)))
+    const saved = await acceptMarkerTask(markerId)
+    setMarkers((prev) => prev.map((item) => (item.id === markerId ? saved : item)))
   }
 
   async function handleCompleteTask(markerId: string) {
+    if (!memberId || !isCrew) return
     const marker = markers.find((item) => item.id === markerId)
-    if (
-      !marker ||
-      marker.completedAt ||
-      !marker.participantIds?.includes(LOCAL_MEMBER_ID)
-    ) {
+    if (!marker || marker.completedAt || !marker.participantIds?.includes(memberId)) {
       return
     }
 
-    const updatedMarker: TrailMarker = {
-      ...marker,
-      completedAt: Date.now(),
-    }
-    await updateMarker(updatedMarker)
-    setMarkers((prev) => prev.map((item) => (item.id === markerId ? updatedMarker : item)))
+    const saved = await completeMarkerTask(markerId)
+    setMarkers((prev) => prev.map((item) => (item.id === markerId ? saved : item)))
     setSelectedMarkerId((current) => (current === markerId ? null : current))
   }
 
@@ -316,21 +371,39 @@ export default function App() {
 
   const activeMarkers = markers.filter((marker) => !marker.completedAt)
   const selectedMarker = activeMarkers.find((marker) => marker.id === selectedMarkerId)
+  const dataLoading = authLoading || loading
 
   if (view === 'home') {
     return (
       <div className="app-frame">
-        <LandingPage onOpenMap={() => setView('map')} onOpenCrew={() => setView('crew')} />
+        <LandingPage
+          onOpenMap={() => setView('map')}
+          onOpenCrew={openCrew}
+          onOpenTrailStatus={() => setView('status')}
+        />
       </div>
     )
   }
 
   if (view === 'crew') {
+    if (!isCrew || !memberId) {
+      return (
+        <div className="app-frame">
+          <LandingPage
+            onOpenMap={() => setView('map')}
+            onOpenCrew={openCrew}
+            onOpenTrailStatus={() => setView('status')}
+          />
+        </div>
+      )
+    }
+
     return (
       <CrewPanel
-        loading={loading}
+        loading={dataLoading}
         markers={markers}
         tracks={tracks}
+        memberId={memberId}
         focusMarkerId={crewFocusMarkerId}
         onAcceptTask={handleAcceptTask}
         onCompleteTask={handleCompleteTask}
@@ -348,8 +421,11 @@ export default function App() {
       <TrailStatusPage
         onGoHome={() => setView('home')}
         onOpenMap={() => setView('map')}
-        onOpenCrew={() => setView('crew')}
+        onOpenCrew={openCrew}
         onOpenTrailStatus={() => undefined}
+        showCrew={isCrew}
+        statuses={trailStatuses}
+        onStatusesChange={setTrailStatuses}
       />
     )
   }
@@ -360,6 +436,7 @@ export default function App() {
         <MapView
           tracks={tracks}
           markers={activeMarkers}
+          trailStatuses={trailStatuses}
           gps={gps}
           followGps={followGps}
           selectedTrackId={selection?.id}
@@ -385,7 +462,7 @@ export default function App() {
         open={menuOpen}
         onOpenChange={setMenuOpen}
         busy={busy}
-        loading={loading}
+        loading={dataLoading}
         followGps={followGps}
         gps={gps}
         tracks={tracks}
@@ -402,8 +479,9 @@ export default function App() {
         onLocate={handleLocate}
         onGoHome={() => setView('home')}
         onOpenMap={() => setView('map')}
-        onOpenCrew={() => setView('crew')}
+        onOpenCrew={openCrew}
         onOpenTrailStatus={() => setView('status')}
+        showCrew={isCrew}
         onFocusTrack={(id) => {
           setFocusTrackId(null)
           requestAnimationFrame(() => setFocusTrackId(id))
@@ -420,11 +498,15 @@ export default function App() {
           tracks={tracks}
           onClose={() => setSelectedMarkerId(null)}
           onDelete={handleDeleteMarker}
-          onViewInCrew={(id) => {
-            setSelectedMarkerId(null)
-            setCrewFocusMarkerId(id)
-            setView('crew')
-          }}
+          onViewInCrew={
+            isCrew
+              ? (id) => {
+                  setSelectedMarkerId(null)
+                  setCrewFocusMarkerId(id)
+                  setView('crew')
+                }
+              : undefined
+          }
         />
       )}
 

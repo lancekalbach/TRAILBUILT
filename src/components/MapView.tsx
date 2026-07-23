@@ -10,6 +10,7 @@ import { flyToLocation } from '../lib/mapCamera'
 import {
   getTrailOpenStatus,
   TRAIL_STATUS_LABELS,
+  type TrailOpenStatus,
 } from '../data/trailStatus'
 import {
   isInsidePbrRegion,
@@ -168,7 +169,13 @@ function formatTrailLength(track: TrailTrack): string {
   return `${miles < 1 ? miles.toFixed(2) : miles.toFixed(1)} miles`
 }
 
-function showTrailPopup(map: MapLibreMap, track: TrailTrack, lng: number, lat: number): Popup {
+function showTrailPopup(
+  map: MapLibreMap,
+  track: TrailTrack,
+  lng: number,
+  lat: number,
+  statusOverrides?: Partial<Record<string, TrailOpenStatus>>,
+): Popup {
   const body = document.createElement('div')
   body.className = 'trail-popup-body'
 
@@ -184,7 +191,7 @@ function showTrailPopup(map: MapLibreMap, track: TrailTrack, lng: number, lat: n
   length.textContent = formatTrailLength(track)
   meta.append(length)
 
-  const status = getTrailOpenStatus(track.id)
+  const status = getTrailOpenStatus(track.id, statusOverrides)
   if (status) {
     const badge = document.createElement('span')
     badge.className = `trail-popup-status trail-popup-status--${status}`
@@ -250,6 +257,7 @@ function syncTrailMarkers(
 type MapViewProps = {
   tracks?: TrailTrack[]
   markers?: TrailMarker[]
+  trailStatuses?: Partial<Record<string, TrailOpenStatus>>
   gps: GpsPosition | null
   followGps: boolean
   selectedTrackId?: string | null
@@ -266,6 +274,7 @@ type MapViewProps = {
 export function MapView({
   tracks = [],
   markers = [],
+  trailStatuses = {},
   gps,
   followGps,
   selectedTrackId,
@@ -285,6 +294,8 @@ export function MapView({
   const trailPopupRef = useRef<Popup | null>(null)
   const basemapRef = useRef<BasemapId>('streets')
   const mobileRef = useRef(false)
+  const trailStatusesRef = useRef(trailStatuses)
+  trailStatusesRef.current = trailStatuses
   const tracksRef = useRef(tracks)
   const markersRef = useRef(markers)
   const selectedTrackIdRef = useRef(selectedTrackId)
@@ -384,6 +395,7 @@ export function MapView({
         track,
         event.lngLat.lng,
         event.lngLat.lat,
+        trailStatusesRef.current,
       )
     })
 
